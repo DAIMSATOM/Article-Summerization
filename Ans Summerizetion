@@ -92,4 +92,195 @@ else:
 
 
 
+Arrange MapMarks -----------------------------------------------------------------------------------
+
+def solve_mapmarks():
+    import sys
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return  # No input
+    # Parse N, M and grid
+    it = iter(data)
+    N = int(next(it)); M = int(next(it))
+    grid_lines = [list(next(it).strip()) for _ in range(N)]
+    k = N // M  # number of sub-sheets per row/col
+
+    # Extract sub-sheets and their edge patterns
+    sub_sheets = []             # Each sub-sheet as list of rows (each row is a list of chars)
+    sub_edges = []              # Each sub-sheet's (top, right, bottom, left) edges as strings
+    s_index = d_index = None    # indices of sub-sheet containing S and D
+    for i in range(k):
+        for j in range(k):
+            # Extract sub-sheet (i, j)
+            top_row = i * M
+            left_col = j * M
+            tile = [grid_lines[top_row + x][left_col:left_col + M] for x in range(M)]
+            sub_sheets.append(tile)
+            # Compute edges as strings for easy comparison
+            top_edge    = "".join(tile[0])
+            bottom_edge = "".join(tile[M-1])
+            left_edge   = "".join(row[0] for row in tile)
+            right_edge  = "".join(row[M-1] for row in tile)
+            sub_edges.append((top_edge, right_edge, bottom_edge, left_edge))
+            # Check for S or D in this tile
+            flat = "".join("".join(row) for row in tile)
+            idx = len(sub_sheets) - 1
+            if 'S' in flat:
+                s_index = idx
+            if 'D' in flat:
+                d_index = idx
+
+    # Prepare placement grid and used marker
+    placed = [[None] * k for _ in range(k)]   # will hold indices of sub_sheets in arranged positions
+    used = [False] * len(sub_sheets)
+    # Fix S and D positions
+    if s_index is not None:
+        placed[0][0] = s_index
+        used[s_index] = True
+    if d_index is not None:
+        placed[k-1][k-1] = d_index
+        used[d_index] = True
+
+    # List of positions to fill (excluding fixed S and D positions)
+    positions = []
+    for r in range(k):
+        for c in range(k):
+            if (r == 0 and c == 0 and s_index is not None) or (r == k-1 and c == k-1 and d_index is not None):
+                continue
+            positions.append((r, c))
+
+    # Backtracking DFS to arrange sub-sheets
+    solution_found = False
+    def backtrack(pos_idx=0):
+        nonlocal solution_found
+        if pos_idx == len(positions):
+            # All positions filled successfully
+            solution_found = True
+            return True
+        r, c = positions[pos_idx]
+        # Determine required edge match patterns from already placed neighbors
+        required_top = None
+        required_left = None
+        if r > 0:
+            # Top neighbor is placed
+            top_neighbor_idx = placed[r-1][c]
+            if top_neighbor_idx is not None:
+                # bottom edge of top neighbor must equal top of current
+                required_top = sub_edges[top_neighbor_idx][2]  # bottom edge of top neighbor
+        if c > 0:
+            # Left neighbor is placed
+            left_neighbor_idx = placed[r][c-1]
+            if left_neighbor_idx is not None:
+                # right edge of left neighbor must equal left of current
+                required_left = sub_edges[left_neighbor_idx][1]  # right edge of left neighbor
+        # If this position is adjacent to the fixed D tile, also consider its edges
+        required_right = None
+        required_bottom = None
+        if r == k-1 and c == k-2 and d_index is not None:
+            # directly left of D
+            required_right = sub_edges[d_index][3]  # D's left edge
+        if r == k-2 and c == k-1 and d_index is not None:
+            # directly above D
+            required_bottom = sub_edges[d_index][0]  # D's top edge
+
+        # Try all unused tiles for this position
+        for tile_idx in range(len(sub_sheets)):
+            if used[tile_idx]:
+                continue
+            # Check if this tile meets the required neighbor edge patterns
+            top_edge, right_edge, bottom_edge, left_edge = sub_edges[tile_idx]
+            if required_top is not None and top_edge != required_top:
+                continue  # top edge doesn't match the piece above
+            if required_left is not None and left_edge != required_left:
+                continue  # left edge doesn't match the piece to the left
+            if required_right is not None and right_edge != required_right:
+                continue  # right edge doesn't match the D piece's left
+            if required_bottom is not None and bottom_edge != required_bottom:
+                continue  # bottom edge doesn't match the D piece's top
+            # If all applicable requirements are satisfied, place this tile
+            placed[r][c] = tile_idx
+            used[tile_idx] = True
+            # Recurse to place next tile
+            if backtrack(pos_idx + 1):
+                return True
+            # Backtrack: remove the tile and mark unused
+            used[tile_idx] = False
+            placed[r][c] = None
+        # If no tile fits here, backtrack to previous position
+        return False
+
+    backtrack()  # initiate backtracking from the first empty position
+
+    if not solution_found:
+        # If for some reason no arrangement found (edge case), output -1 or handle as needed
+        # (The puzzle is expected to have a valid solution, so this is a safeguard.)
+        print(-1)
+        return
+
+    # Reconstruct the solved grid from the arranged sub-sheets
+    solved_grid = [[None] * N for _ in range(N)]
+    for i in range(k):
+        for j in range(k):
+            tile_idx = placed[i][j]
+            tile = sub_sheets[tile_idx]
+            # Copy this tile into the solved_grid at the appropriate location
+            base_r, base_c = i * M, j * M
+            for x in range(M):
+                for y in range(M):
+                    solved_grid[base_r + x][base_c + y] = tile[x][y]
+
+    # Locate S and D coordinates in the solved grid
+    start = dest = None
+    for i in range(N):
+        for j in range(N):
+            if solved_grid[i][j] == 'S':
+                start = (i, j)
+            elif solved_grid[i][j] == 'D':
+                dest = (i, j)
+    if start is None or dest is None:
+        # If S or D not found (shouldn't happen if input is correct), handle error
+        print(-1)
+        return
+
+    # BFS from start to destination on the solved grid
+    from collections import deque
+    sr, sc = start; dr, dc = dest
+    q = deque()
+    q.append((sr, sc, 0))
+    visited = [[False] * N for _ in range(N)]
+    visited[sr][sc] = True
+    directions = [(1,0),(-1,0),(0,1),(0,-1)]
+    shortest_distance = -1
+    while q:
+        x, y, dist = q.popleft()
+        if (x, y) == (dr, dc):
+            shortest_distance = dist
+            break
+        # Explore neighbors
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            # Check bounds
+            if nx < 0 or nx >= N or ny < 0 or ny >= N:
+                continue
+            if visited[nx][ny]:
+                continue
+            cell = solved_grid[nx][ny]
+            # Determine if cell is traversable
+            if cell == '0':
+                # Assuming '0' represents an impassable cell (wall)
+                continue
+            # Otherwise, it's part of the track (including S or D or path symbol)
+            visited[nx][ny] = True
+            q.append((nx, ny, dist + 1))
+    # Output the shortest path distance
+    if shortest_distance != -1:
+        print(shortest_distance)
+    else:
+        # No path found (just in case)
+        print(-1)
+
+
+
+Optimize Cost--------------------------------------------------------------------------------
+
 
