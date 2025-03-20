@@ -3,3 +3,105 @@ cpp
 send Output ???? 
 no ouptupt
 3 ka public pass hua pvt nhi
+
+Q4
+Road NavigationMarks: 100
+Problem Description
+Welcome to GridLand! This bustling city sprawls across an N×M grid on a 2D plane, with its bottom-left corner perfectly aligned with the origin (0, 0).
+
+GridLand's buildings occupy each cell in the grid, mostly clustered together with limited space for movement between them. Narrow roads connect some of these buildings, represented by line segments in the input data. These roads are your only paths!
+
+Rahul starts his journey on one of these roads and aims to reach a specific destination using only these road connections. Your task is to determine the shortest distance Rahul needs to travel to reach his goal. Remember, he can only move along the roads, which run along gridlines. Each cell crossed (by traveling between two corners) counts as one unit of distance.
+
+Note: The size of the GridLand is not mentioned.
+
+Constraints
+1 <= (x, y) <= 50
+
+1 <= Number of roads <= 50
+
+Input
+The first line contains an integer N, representing the number of roads in GridLand.
+
+The next N lines each contain four space-separated integers: x1 y1 x2 y2. These coordinates define the starting (x1, y1) and ending (x2, y2) points of each road segment.
+
+The second-to-last line contains two space-separated integers representing the x, y coordinates of Rahul's current position.
+
+The last line contains two space-separated integers representing the x, y coordinates of Rahul's destination.
+
+Output
+Print the minimum distance Rahul needs to travel to reach his destination. If it is impossible for him to reach his destination using the roads, print "Impossible."
+
+Time Limit (secs)
+1
+
+Examples
+Example 1
+
+Input
+
+6
+
+2 0 0 2
+
+0 0 6 6
+
+2 0 2 4
+
+2 4 5 4
+
+4 1 4 6
+
+5 5 6 4
+
+1 1
+
+6 4
+
+Output
+
+5
+
+Explanation
+
+The given roads when visualised looks below.
+
+com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@410954b:image1.png
+
+Rahul begins his trip at coordinates (1, 1) and aims to reach his destination at (6, 4). He finds the shortest path by traveling along these connected roads: (1, 1) -> (2, 2) -> (3, 3) -> (4, 4) -> (5, 5) -> (6, 4). Along this route, Rahul crosses a total of 5 cells (buildings), which represents the minimum distance required to reach his destination.
+
+Example 2
+
+Input
+
+7
+
+5 5 2 5
+
+2 5 2 3
+
+2 3 5 3
+
+5 3 5 1
+
+5 1 2 1
+
+1 2 5 6
+
+3 4 6 1
+
+5 5
+
+2 1
+
+Output
+
+8
+
+Explanation
+
+The given roads when visualised looks below.
+
+com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@410954b:image2.png
+
+Rahul starts his journey at coordinates (5, 5) with the goal of reaching (2, 1). He finds the shortest route by following these connected roads: (5, 5) -> (4, 5) -> (3, 4) -> (4, 3) -> (5, 2) -> (5, 1) -> (4, 1) -> (3, 1) -> (2, 1). This path takes him across a total of 8 cells (buildings), representing the minimum distance required to get from his starting point to his destination.
