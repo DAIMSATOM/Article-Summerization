@@ -1,165 +1,82 @@
-3. ye 3rd wala
+4.
 def solve():
     import sys
-    data = sys.stdin.read().strip().split('\n')
-
-    # 1) Parse Input
-    N = int(data[0])
-    substrings = []
-    for i in range(1, N+1):
-        s, c, w = data[i].split()
-        substrings.append((s, int(c), int(w)))
-    main_string = data[N+1]
-    
-    # 2) Part 1: Minimum Cost to Cover Main String
-    T = main_string
-    m = len(T)
-    INF = 10**15
-
-    # dp[i] = minimum cost to form T[:i] as a subsequence
-    dp = [INF] * (m + 1)
-    dp[0] = 0
-    parent_index = [-1] * (m + 1)
-    parent_sub = [-1] * (m + 1)
-
-    def build_advance_table(sub, T):
-        """ Returns an array where advance[i] is the next index in T after matching 'sub' from i. """
-        m = len(T)
-        adv = [m+1] * (m + 1)  # Default beyond the last index
-        for i in range(m + 1):
-            p = i
-            for c in sub:
-                while p < m and T[p] != c:
-                    p += 1
-                if p < m:
-                    p += 1
-            adv[i] = p
-        return adv
-
-    advance_tables = [build_advance_table(s, T) for s, _, _ in substrings]
-
-    for i in range(m + 1):
-        if dp[i] == INF:
-            continue
-        for j, (s, cost_j, weight_j) in enumerate(substrings):
-            nxt = advance_tables[j][i]
-            if nxt <= m:
-                new_cost = dp[i] + cost_j
-                if new_cost < dp[nxt]:
-                    dp[nxt] = new_cost
-                    parent_index[nxt] = i
-                    parent_sub[nxt]   = j
-
-    # Backtrack to determine selected substrings
-    usage_counts = [0] * N
-    cur = m
-    while cur > 0:
-        p = parent_index[cur]
-        j = parent_sub[cur]
-        usage_counts[j] += 1
-        cur = p
-
-    # 3) Part 2: Build Maximum Ladder
-    items = []
-    for i, (s, c, w) in enumerate(substrings):
-        if usage_counts[i] > 0:
-            ability = sum(ord(ch) - ord('a') + 1 for ch in s)
-            for _ in range(usage_counts[i]):
-                items.append((ability, w))
-
-    if not items:
-        print(0)
-        return
-
-    # Sort items by descending ability
-    items.sort(reverse=True, key=lambda x: x[0])
-    M = len(items)
-
-    # DP for max ladder height
-    max_height = 0
-    total_weight = 0
-    for ability, weight in items:
-        if ability >= total_weight:
-            max_height += 1
-            total_weight += weight
-
-    print(max_height)
-
-
-
-4. ye raha new
-def solve():
-    import sys
-    from collections import deque
     from math import gcd
+    from collections import deque
     
-    data = sys.stdin.read().strip().split()
-    idx = 0
+    # Step 1: Read number of roads.
+    input_line = sys.stdin.readline().strip()
+    while not input_line:  # skip any empty lines
+        input_line = sys.stdin.readline().strip()
+    N = int(input_line)
     
-    # 1) Read input
-    N = int(data[idx])  # number of roads
-    idx += 1
-    
+    # Step 2: Read the N roads.
     roads = []
     for _ in range(N):
-        x1 = int(data[idx]);   y1 = int(data[idx+1])
-        x2 = int(data[idx+2]); y2 = int(data[idx+3])
-        idx += 4
+        line = sys.stdin.readline().strip()
+        while not line:  # skip empty lines if they occur
+            line = sys.stdin.readline().strip()
+        x1, y1, x2, y2 = map(int, line.split())
         roads.append((x1, y1, x2, y2))
     
-    # Next line: Rahul's current position
-    x_s = int(data[idx]); y_s = int(data[idx+1])
-    # Last line: Rahul's destination
-    x_g = int(data[idx+2]); y_g = int(data[idx+3])
-    idx += 4
+    # Step 3: Read Rahul's current position (start).
+    line = sys.stdin.readline().strip()
+    while not line:
+        line = sys.stdin.readline().strip()
+    x_s, y_s = map(int, line.split())
     
-    # 2) Prepare graph structures
-    # vertex_id: maps (x,y) -> an integer index
-    # edges: adjacency list, edges[u] = list of neighbors of u
-    vertex_id = {}
-    edges = []
+    # Step 4: Read Rahul's destination.
+    line = sys.stdin.readline().strip()
+    while not line:
+        line = sys.stdin.readline().strip()
+    x_g, y_g = map(int, line.split())
+    
+    # Step 5: Prepare data structures for the graph.
+    vertex_id = {}  # maps (x, y) -> integer index
+    edges = []      # adjacency list; edges[i] = list of neighbors of vertex i
     
     def add_vertex(point):
-        """Return the index of 'point' in the graph, creating if needed."""
+        """Map the (x, y) 'point' to a unique vertex index, creating if needed."""
         if point not in vertex_id:
             vertex_id[point] = len(edges)
             edges.append([])
         return vertex_id[point]
     
     def add_edge(p1, p2):
-        """Add a bidirectional edge of cost 1 between p1 and p2."""
+        """Add a bidirectional edge between lattice points p1 and p2 with cost 1."""
         v1 = add_vertex(p1)
         v2 = add_vertex(p2)
         edges[v1].append(v2)
         edges[v2].append(v1)
     
-    # 3) Build the graph from each road
+    # Step 6: Convert each road into discrete lattice points and build graph edges.
     for (x1, y1, x2, y2) in roads:
         dx = x2 - x1
         dy = y2 - y1
         
-        # If it's a degenerate road (same start and end), just ensure the point is in the graph
+        # Zero-length road:
         if dx == 0 and dy == 0:
             add_vertex((x1, y1))
             continue
         
-        g = gcd(abs(dx), abs(dy))  # how many integer "steps" lie between the endpoints
+        # gcd-based step to list all integer points on this road
+        g = gcd(abs(dx), abs(dy))
         step_x = dx // g
         step_y = dy // g
         
-        # Generate all integer lattice points along this road
+        # Generate all points from (x1, y1) up to (x2, y2) in unit steps
         px, py = x1, y1
-        points_along_road = []
+        points_on_road = []
         for _ in range(g + 1):
-            points_along_road.append((px, py))
+            points_on_road.append((px, py))
             px += step_x
             py += step_y
         
-        # Connect each consecutive pair of points on this road
-        for i in range(len(points_along_road) - 1):
-            add_edge(points_along_road[i], points_along_road[i+1])
+        # Connect consecutive points on the road
+        for i in range(len(points_on_road) - 1):
+            add_edge(points_on_road[i], points_on_road[i+1])
     
-    # 4) Check if start/end are in the graph at all
+    # Step 7: Ensure start and goal exist in the graph
     if (x_s, y_s) not in vertex_id or (x_g, y_g) not in vertex_id:
         print("Impossible.")
         return
@@ -167,21 +84,21 @@ def solve():
     start_idx = vertex_id[(x_s, y_s)]
     goal_idx = vertex_id[(x_g, y_g)]
     
-    # 5) BFS for shortest path in an unweighted graph
+    # Step 8: BFS for shortest path (number of edges).
     dist = [-1] * len(edges)
     dist[start_idx] = 0
+    
     queue = deque([start_idx])
     
     while queue:
         u = queue.popleft()
         if u == goal_idx:
-            # Found the shortest distance
             print(dist[u])
             return
         for v in edges[u]:
-            if dist[v] == -1:
+            if dist[v] == -1:  # unvisited
                 dist[v] = dist[u] + 1
                 queue.append(v)
     
-    # If unreachable, print Impossible.
+    # If goal wasn't reached, it's impossible.
     print("Impossible.")
