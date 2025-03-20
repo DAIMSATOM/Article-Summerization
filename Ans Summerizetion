@@ -1,1 +1,254 @@
-summarized answer part 1
+from collections import deque
+
+def solve():
+    import sys
+    data = sys.stdin.read().strip().split()
+    # First line: N, M
+    N, M = map(int, data[:2])
+    # Next N lines: each line has N characters (like "LLLLLL")
+    lines = data[2:]
+    # Convert each line to a list of chars
+    raw_map = [list(line) for line in lines]
+    
+    k = N // M  # number of sub-sheets in each dimension
+    total_sheets = k * k
+    
+    #----------------------------------------------------------------------
+    # 1) Extract all sub-sheets (MxM).
+    #    We'll store them in row-major order as they appear in the input.
+    #    sub_sheets[i] is a list of lists (MxM) of characters.
+    #----------------------------------------------------------------------
+    sub_sheets = []
+    for r in range(k):
+        for c in range(k):
+            block = []
+            row_start = r * M
+            col_start = c * M
+            for rr in range(M):
+                row_data = raw_map[row_start + rr][col_start : col_start + M]
+                block.append(row_data)
+            sub_sheets.append(block)
+    
+    #----------------------------------------------------------------------
+    # 2) Identify which sub-sheet contains 'S' and which contains 'D'.
+    #    We'll assume exactly one 'S' and one 'D' in the entire puzzle.
+    #----------------------------------------------------------------------
+    index_of_S = None
+    index_of_D = None
+    
+    for i, sheet in enumerate(sub_sheets):
+        for rr in range(M):
+            for cc in range(M):
+                if sheet[rr][cc] == 'S':
+                    index_of_S = i
+                if sheet[rr][cc] == 'D':
+                    index_of_D = i
+    # Safety check (assuming always found):
+    if index_of_S is None or index_of_D is None:
+        print("Error: Could not find S or D in the sub-sheets.")
+        return
+    
+    #----------------------------------------------------------------------
+    # 3) Precompute boundary compatibility for faster checking:
+    #
+    #    right_compat[i][j] = True if sub_sheets[i] can be placed IMMEDIATELY
+    #        to the LEFT of sub_sheets[j].  This requires that for every row r,
+    #        the rightmost cell of i matches (T or L) the leftmost cell of j.
+    #
+    #    down_compat[i][j] = True if sub_sheets[i] can be placed IMMEDIATELY
+    #        ABOVE sub_sheets[j].  This requires that for every col c,
+    #        the bottom cell of i matches the top cell of j.
+    #
+    #    If a boundary has T on one side and L on the other, that is incompatible.
+    #    Also T vs T is okay, L vs L is okay, but T vs L or L vs T is not.
+    #----------------------------------------------------------------------
+    
+    def boundaries_match(char1, char2):
+        # True if both are 'T' or both are 'L' or one is 'S'/'D' treated as 'T'?
+        # The puzzle suggests we treat 'S'/'D' as part of the track. Usually 'S' or 'D'
+        # will appear only once, so for boundary matching let's treat them like 'T'.
+        # 'S' or 'D' won't appear on the boundary except in small M, but let's be safe:
+        if char1 in ('S','D'):
+            char1 = 'T'
+        if char2 in ('S','D'):
+            char2 = 'T'
+        return (char1 == char2)
+    
+    right_compat = [[False]*total_sheets for _ in range(total_sheets)]
+    down_compat  = [[False]*total_sheets for _ in range(total_sheets)]
+    
+    for i in range(total_sheets):
+        sheetA = sub_sheets[i]
+        # Extract the "right edge" of sheetA (size M) and "bottom edge" of sheetA (size M)
+        right_edge_A = [sheetA[r][M-1] for r in range(M)]
+        bottom_edge_A = sheetA[M-1]
+        
+        for j in range(total_sheets):
+            if i == j:
+                continue
+            sheetB = sub_sheets[j]
+            # Extract the "left edge" of sheetB and "top edge" of sheetB
+            left_edge_B = [sheetB[r][0] for r in range(M)]
+            top_edge_B  = sheetB[0]
+            
+            # Check horizontal (A right edge) vs (B left edge)
+            horizontal_ok = True
+            for r in range(M):
+                if not boundaries_match(right_edge_A[r], left_edge_B[r]):
+                    horizontal_ok = False
+                    break
+            
+            # Check vertical (A bottom edge) vs (B top edge)
+            vertical_ok = True
+            for c in range(M):
+                if not boundaries_match(bottom_edge_A[c], top_edge_B[c]):
+                    vertical_ok = False
+                    break
+            
+            right_compat[i][j] = horizontal_ok
+            down_compat[i][j]  = vertical_ok
+    
+    #----------------------------------------------------------------------
+    # 4) Backtracking to arrange the sub-sheets into a k x k grid.
+    #
+    #    - Force sub_sheets[index_of_S] at (0,0).
+    #    - Force sub_sheets[index_of_D] at (k-1,k-1).
+    #    - Fill the rest checking boundary constraints:
+    #         * If we place sub-sheet x at (r,c), then:
+    #               if c>0 => it must match horizontally with final_layout[r][c-1].
+    #               if r>0 => it must match vertically   with final_layout[r-1][c].
+    #----------------------------------------------------------------------
+    
+    final_layout = [[None]*k for _ in range(k)]
+    used = [False] * total_sheets
+    
+    # Place S-sub-sheet and D-sub-sheet in their forced positions
+    final_layout[0][0] = index_of_S
+    used[index_of_S] = True
+    final_layout[k-1][k-1] = index_of_D
+    used[index_of_D] = True
+    
+    best_distance = None  # Will store the minimum BFS distance found
+    
+    # We'll need a function to build the full NxN map from the arrangement
+    # and then BFS from S to D to find distance.
+    
+    def build_full_map_and_bfs(layout):
+        """
+        Given a complete layout (k x k) of sub-sheet indices, build the NxN map,
+        find S and D, then run BFS for the shortest T-path from S to D.
+        Return that distance (integer) or None if no path.
+        """
+        # Build NxN
+        full_map = [['?']*N for _ in range(N)]
+        
+        for r in range(k):
+            for c in range(k):
+                sheet_idx = layout[r][c]
+                block = sub_sheets[sheet_idx]
+                # Copy block into position (r*M..r*M+M-1, c*M..c*M+M-1)
+                start_row = r*M
+                start_col = c*M
+                for rr in range(M):
+                    for cc in range(M):
+                        full_map[start_row+rr][start_col+cc] = block[rr][cc]
+        
+        # Locate S and D in full_map
+        s_pos = None
+        d_pos = None
+        for rr in range(N):
+            for cc in range(N):
+                if full_map[rr][cc] == 'S':
+                    s_pos = (rr, cc)
+                elif full_map[rr][cc] == 'D':
+                    d_pos = (rr, cc)
+        if not s_pos or not d_pos:
+            return None
+        
+        # BFS from S to D, counting cells (including S and D).
+        # We'll treat 'S','D','T' as passable. 'L' as blocked.
+        # 4-directional movement.
+        queue = deque()
+        visited = [[False]*N for _ in range(N)]
+        
+        # Start BFS with distance=1 at S
+        s_r, s_c = s_pos
+        queue.append((s_r, s_c, 1))  # row, col, distance
+        visited[s_r][s_c] = True
+        
+        while queue:
+            r, c, dist = queue.popleft()
+            if (r, c) == d_pos:
+                # Found D
+                return dist
+            
+            for (dr, dc) in [(-1,0),(1,0),(0,-1),(0,1)]:
+                nr, nc = r+dr, c+dc
+                if 0 <= nr < N and 0 <= nc < N and not visited[nr][nc]:
+                    ch = full_map[nr][nc]
+                    # Treat S/D as T for path
+                    if ch in ('S','D','T'):
+                        visited[nr][nc] = True
+                        queue.append((nr, nc, dist+1))
+        
+        return None  # no path found
+    
+    # Backtracking function
+    def backtrack(pos):
+        nonlocal best_distance
+        
+        if pos == k*k:
+            # All sub-sheets placed => compute BFS
+            dist = build_full_map_and_bfs(final_layout)
+            if dist is not None:
+                if best_distance is None or dist < best_distance:
+                    best_distance = dist
+            return
+        
+        # Convert linear pos -> (row, col)
+        r = pos // k
+        c = pos % k
+        
+        # If this position is already set (S or D corners), skip
+        if final_layout[r][c] is not None:
+            backtrack(pos+1)
+            return
+        
+        # Try each sub-sheet that is not used yet
+        for sheet_idx in range(total_sheets):
+            if not used[sheet_idx]:
+                # Check boundary constraints with left and up
+                ok = True
+                # Left constraint
+                if c > 0:
+                    left_sheet = final_layout[r][c-1]
+                    if not right_compat[left_sheet][sheet_idx]:
+                        ok = False
+                # Up constraint
+                if ok and r > 0:
+                    up_sheet = final_layout[r-1][c]
+                    if not down_compat[up_sheet][sheet_idx]:
+                        ok = False
+                if not ok:
+                    continue
+                
+                # Place and recurse
+                final_layout[r][c] = sheet_idx
+                used[sheet_idx] = True
+                
+                backtrack(pos+1)
+                
+                # Undo
+                final_layout[r][c] = None
+                used[sheet_idx] = False
+    
+    # Start backtracking from position 0
+    backtrack(0)
+    
+    # Finally, print the best distance found
+    # Problem statement implies there's always a solution, so we assume best_distance != None
+    if best_distance is None:
+        # If no arrangement yielded a path, might print 0 or -1 per your convention
+        print(0)
+    else:
+        print(best_distance)
