@@ -1,715 +1,770 @@
-1. new version 3
-import sys
-import collections
+1.
+#include <bits/stdc++.h>
+using namespace std;
 
-# Increase recursion limit if needed (especially for N up to 25, M up to 5).
-# This helps avoid RuntimeError in deeper backtracking scenarios.
-sys.setrecursionlimit(10**7)
+/*
+  The puzzle constraints:
+    - 6 <= N <= 25
+    - 3 <= M <= 5
+    - N is a multiple of M
+    - Exactly one 'S' and one 'D'
+    - Sub-sheets of size MxM can be rearranged in a k x k grid (k = N/M),
+      with 'S' sub-sheet forced at (0,0) and 'D' sub-sheet forced at (k-1,k-1).
+    - We want the shortest track distance from S to D (counting both S and D).
+*/
 
-def read_input():
-    """
-    Reads the first line containing N and M,
-    then the next N lines each with N characters ('L','T','S','D').
-    Returns (N, M, raw_map).
-    """
-    # First line
-    raw = input().strip().split()
-    N, M = map(int, raw)
+///////////////////////////////////////////////
+// 1) Read Input
+///////////////////////////////////////////////
+void readInput(int &N, int &M, vector<vector<char>> &rawMap) {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    cin >> N >> M;  // first line: N, M
+    rawMap.resize(N, vector<char>(N));
+
+    for(int r = 0; r < N; r++){
+        // Each line has N characters (e.g. "LLLLLL")
+        // Make sure you read them as a contiguous string with no spaces in between
+        string line;
+        cin >> line; // read a string of length N
+        for(int c = 0; c < N; c++){
+            rawMap[r][c] = line[c];
+        }
+    }
+}
+
+
+///////////////////////////////////////////////
+// 2) Extract MxM sub-sheets from the NxN map
+///////////////////////////////////////////////
+vector<vector<vector<char>>> extractSubSheets(int N, int M, const vector<vector<char>> &rawMap) {
+    // k = N / M
+    int k = N / M;
+    // We'll store sub-sheets in row-major order as they appear in the input
+    // Each sub-sheet is an MxM block
+    vector<vector<vector<char>>> subSheets; 
+    subSheets.reserve(k * k);
+
+    for(int r = 0; r < k; r++){
+        for(int c = 0; c < k; c++){
+            vector<vector<char>> block(M, vector<char>(M));
+            int rowStart = r * M;
+            int colStart = c * M;
+            for(int rr = 0; rr < M; rr++){
+                for(int cc = 0; cc < M; cc++){
+                    block[rr][cc] = rawMap[rowStart + rr][colStart + cc];
+                }
+            }
+            subSheets.push_back(block);
+        }
+    }
+    return subSheets;
+}
+
+
+///////////////////////////////////////////////
+// 3) Identify which sub-sheet contains 'S' or 'D'
+///////////////////////////////////////////////
+pair<int,int> findSD(const vector<vector<vector<char>>> &subSheets) {
+    // returns {index_of_S, index_of_D}
+    int index_of_S = -1;
+    int index_of_D = -1;
+
+    for(int i = 0; i < (int)subSheets.size(); i++){
+        int M = (int)subSheets[i].size(); // each sub-sheet is MxM
+        for(int r = 0; r < M; r++){
+            for(int c = 0; c < M; c++){
+                if(subSheets[i][r][c] == 'S'){
+                    index_of_S = i;
+                }
+                else if(subSheets[i][r][c] == 'D'){
+                    index_of_D = i;
+                }
+            }
+        }
+    }
+    return make_pair(index_of_S, index_of_D);
+}
+
+
+///////////////////////////////////////////////
+// 4) Precompute boundary compatibility
+//    rightCompat[i][j] = true if subSheets[i] can be placed
+//        immediately to the left of subSheets[j] (matching vertical boundary).
+//    downCompat[i][j] = true if subSheets[i] can be placed
+//        immediately above subSheets[j] (matching horizontal boundary).
+///////////////////////////////////////////////
+bool matchOk(char a, char b) {
+    // 'S'/'D' are treated like 'T' for boundary checks
+    auto boundaryType = [&](char ch){
+        if(ch == 'S' || ch == 'D') return 'T';
+        return ch;
+    };
+    return boundaryType(a) == boundaryType(b);
+}
+
+void precomputeCompatibility(
+    const vector<vector<vector<char>>> &subSheets,
+    vector<vector<bool>> &rightCompat,
+    vector<vector<bool>> &downCompat
+){
+    int total = (int)subSheets.size();
+    int M = (int)subSheets[0].size();
+
+    rightCompat.assign(total, vector<bool>(total, false));
+    downCompat.assign(total, vector<bool>(total, false));
+
+    for(int i = 0; i < total; i++){
+        // right edge of subSheets[i]
+        vector<char> rightEdge(M), bottomEdge(M);
+        for(int r = 0; r < M; r++){
+            rightEdge[r] = subSheets[i][r][M-1];
+        }
+        for(int c = 0; c < M; c++){
+            bottomEdge[c] = subSheets[i][M-1][c];
+        }
+
+        for(int j = 0; j < total; j++){
+            if(i == j) continue;
+            // left edge of subSheets[j], top edge of subSheets[j]
+            vector<char> leftEdge(M), topEdge(M);
+            for(int r = 0; r < M; r++){
+                leftEdge[r] = subSheets[j][r][0];
+            }
+            for(int c = 0; c < M; c++){
+                topEdge[c] = subSheets[j][0][c];
+            }
+
+            // check horizontal boundary (i->right vs j->left)
+            bool horizOK = true;
+            for(int r = 0; r < M && horizOK; r++){
+                if(!matchOk(rightEdge[r], leftEdge[r])){
+                    horizOK = false;
+                }
+            }
+            // check vertical boundary (i->bottom vs j->top)
+            bool vertOK = true;
+            for(int c = 0; c < M && vertOK; c++){
+                if(!matchOk(bottomEdge[c], topEdge[c])){
+                    vertOK = false;
+                }
+            }
+            rightCompat[i][j] = horizOK;
+            downCompat[i][j]  = vertOK;
+        }
+    }
+}
+
+
+///////////////////////////////////////////////
+// 5) Build the full NxN map from the final layout
+///////////////////////////////////////////////
+vector<vector<char>> buildFullMap(
+    const vector<vector<int>> &finalLayout,
+    const vector<vector<vector<char>>> &subSheets,
+    int N, int M
+){
+    int k = N / M;
+    vector<vector<char>> bigMap(N, vector<char>(N, '?'));
+
+    for(int r = 0; r < k; r++){
+        for(int c = 0; c < k; c++){
+            int sheetIdx = finalLayout[r][c];
+            const auto &block = subSheets[sheetIdx];
+            int rowStart = r * M;
+            int colStart = c * M;
+            for(int rr = 0; rr < M; rr++){
+                for(int cc = 0; cc < M; cc++){
+                    bigMap[rowStart+rr][colStart+cc] = block[rr][cc];
+                }
+            }
+        }
+    }
+    return bigMap;
+}
+
+
+///////////////////////////////////////////////
+// 6) BFS from 'S' to 'D' to find shortest path
+//    counting both S and D in the distance
+///////////////////////////////////////////////
+int bfsShortestPath(const vector<vector<char>> &bigMap, int N){
+    // locate S, D
+    pair<int,int> sPos(-1, -1);
+    pair<int,int> dPos(-1, -1);
+
+    for(int r = 0; r < N; r++){
+        for(int c = 0; c < N; c++){
+            if(bigMap[r][c] == 'S'){
+                sPos = {r, c};
+            } else if(bigMap[r][c] == 'D'){
+                dPos = {r, c};
+            }
+        }
+    }
+    if(sPos.first == -1 || dPos.first == -1){
+        // no S or D found
+        return -1;
+    }
+
+    // BFS
+    vector<vector<bool>> visited(N, vector<bool>(N, false));
+    queue<array<int,3>>q; 
+    // store {row, col, dist}
+    q.push({sPos.first, sPos.second, 1});
+    visited[sPos.first][sPos.second] = true;
+
+    // valid moves: up, down, left, right
+    int dirs[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
+
+    while(!q.empty()){
+        auto [r, c, dist] = q.front(); 
+        q.pop();
+
+        if(r == dPos.first && c == dPos.second){
+            return dist; // found D
+        }
+
+        for(auto &d : dirs){
+            int nr = r + d[0], nc = c + d[1];
+            if(nr >= 0 && nr < N && nc >= 0 && nc < N && !visited[nr][nc]){
+                char ch = bigMap[nr][nc];
+                // passable if T,S,D
+                if(ch == 'T' || ch == 'S' || ch == 'D'){
+                    visited[nr][nc] = true;
+                    q.push({nr, nc, dist+1});
+                }
+            }
+        }
+    }
+    return -1; // no path found
+}
+
+
+///////////////////////////////////////////////
+// 7) Backtracking to place sub-sheets in a k x k grid
+//    We fix the sub-sheet with S at (0,0) and with D at (k-1, k-1).
+///////////////////////////////////////////////
+void backtrack(
+    int pos,
+    vector<vector<int>> &finalLayout,
+    vector<bool> &used,
+    const vector<vector<bool>> &rightCompat,
+    const vector<vector<bool>> &downCompat,
+    const vector<vector<vector<char>>> &subSheets,
+    int N, int M,
+    int &bestDist
+){
+    int k = N / M;
+    if(pos == k*k){
+        // All sub-sheets are placed; build the NxN map and BFS
+        auto bigMap = buildFullMap(finalLayout, subSheets, N, M);
+        int dist = bfsShortestPath(bigMap, N);
+        if(dist > 0){
+            if(bestDist < 0 || dist < bestDist){
+                bestDist = dist;
+            }
+        }
+        return;
+    }
+
+    int r = pos / k;
+    int c = pos % k;
+
+    // If (r,c) is already forced (S or D sub-sheet), skip
+    if(finalLayout[r][c] != -1){
+        backtrack(pos+1, finalLayout, used, rightCompat, downCompat,
+                  subSheets, N, M, bestDist);
+        return;
+    }
+
+    int total = (int)subSheets.size();
+    // Try every unused sub-sheet
+    for(int sheetIdx = 0; sheetIdx < total; sheetIdx++){
+        if(!used[sheetIdx]){
+            // Check boundary with left
+            if(c > 0){
+                int leftSheet = finalLayout[r][c-1];
+                // must match horizontally
+                if(!rightCompat[leftSheet][sheetIdx]){
+                    continue;
+                }
+            }
+            // Check boundary with above
+            if(r > 0){
+                int upSheet = finalLayout[r-1][c];
+                // must match vertically
+                if(!downCompat[upSheet][sheetIdx]){
+                    continue;
+                }
+            }
+
+            // Place
+            finalLayout[r][c] = sheetIdx;
+            used[sheetIdx] = true;
+
+            backtrack(pos+1, finalLayout, used, rightCompat, downCompat,
+                      subSheets, N, M, bestDist);
+
+            // Undo
+            finalLayout[r][c] = -1;
+            used[sheetIdx] = false;
+        }
+    }
+}
+
+
+///////////////////////////////////////////////
+// 8) solve() - orchestrates everything
+///////////////////////////////////////////////
+void solve(){
+    int N, M;
+    vector<vector<char>> rawMap;
+    readInput(N, M, rawMap);
+
+    int k = N / M; // k x k sub-sheets
+    auto subSheets = extractSubSheets(N, M, rawMap);
+
+    // Identify S, D
+    auto [index_of_S, index_of_D] = findSD(subSheets);
+    if(index_of_S < 0 || index_of_D < 0){
+        // No valid S or D found in the sub-sheets => puzzle invalid
+        cout << 0 << "\n";
+        return;
+    }
+
+    // Precompute boundary compatibility
+    vector<vector<bool>> rightCompat, downCompat;
+    precomputeCompatibility(subSheets, rightCompat, downCompat);
+
+    // Prepare final layout (k x k), initially -1
+    vector<vector<int>> finalLayout(k, vector<int>(k, -1));
+    vector<bool> used(k*k, false);
+
+    // Force sub-sheet containing S at (0,0), sub-sheet containing D at (k-1,k-1)
+    finalLayout[0][0] = index_of_S;
+    used[index_of_S] = true;
+    finalLayout[k-1][k-1] = index_of_D;
+    used[index_of_D] = true;
+
+    // We'll store the best distance found
+    int bestDist = -1; // negative => not found yet
+
+    // Backtracking from position 0
+    backtrack(0, finalLayout, used, rightCompat, downCompat,
+              subSheets, N, M, bestDist);
+
+    // If bestDist is still -1 => no arrangement found a path
+    if(bestDist < 0){
+        // Problem states there's always a valid arrangement, but just in case:
+        cout << 0 << "\n";
+    } else {
+        cout << bestDist << "\n";
+    }
+}
+
+
+///////////////////////////////////////////////
+// 9) main() - entry point
+///////////////////////////////////////////////
+int main(){
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    solve();
+    return 0;
+}
+
+
+
+2.
+#include <bits/stdc++.h>
+using namespace std;
+
+// Structure to hold one entry of a bus schedule
+// x, y           : coordinates of the bus stop
+// arrivalTime    : the time the bus arrives at (x,y)
+// departureTime  : the time the bus departs (after waiting) from (x,y)
+// cumulDist      : how many "1-unit" steps the bus has traveled from its own start
+struct ScheduleEntry {
+    int x, y;
+    int arrivalTime;
+    int departureTime;
+    int cumulDist;
+};
+
+///////////////////////////////////////
+// Helper to parse one bus's route string
+///////////////////////////////////////
+vector<pair<string,int>> parseRoute(const string &routeStr) {
+    // e.g., "NE4E3S1" => [("NE",4),("E",3),("S",1)]
+    vector<pair<string,int>> result;
+    int i = 0, n = (int)routeStr.size();
+    while (i < n) {
+        // Possible direction = "N","E","S","W","NE","NW","SE","SW"
+        // We check if the next 2 chars form a known direction
+        // Otherwise we take 1 char
+        string dir;
+        if (i+1 < n) {
+            string maybe2 = routeStr.substr(i, 2);
+            if (maybe2=="NE" || maybe2=="NW" || maybe2=="SE" || maybe2=="SW") {
+                dir = maybe2;
+                i += 2;
+            } else {
+                dir = routeStr.substr(i,1);
+                i += 1;
+            }
+        } else {
+            // only 1 char left
+            dir = routeStr.substr(i,1);
+            i++;
+        }
+        // Now read the digits for distance
+        int distVal = 0;
+        while (i < n && isdigit(routeStr[i])) {
+            distVal = distVal * 10 + (routeStr[i]-'0');
+            i++;
+        }
+        result.push_back({dir, distVal});
+    }
+    return result;
+}
+
+int main(){
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    // Number of buses
+    int N; 
+    cin >> N;
     
-    # Next N lines
-    raw_map = []
-    for _ in range(N):
-        line = input().rstrip('\n')
-        raw_map.append(list(line))  # convert string to list of chars
-
-    return N, M, raw_map
-
-
-def extract_sub_sheets(N, M, raw_map):
-    """
-    Splits the raw_map (N x N) into k*k sub-sheets of size M x M,
-    where k = N // M.
-    Returns a list of sub-sheets, each an M x M list of lists.
-    """
-    k = N // M
-    sub_sheets = []
-    for r in range(k):
-        for c in range(k):
-            block = []
-            row_start = r * M
-            col_start = c * M
-            for rr in range(M):
-                row_data = raw_map[row_start + rr][col_start : col_start + M]
-                block.append(row_data)
-            sub_sheets.append(block)
-    return sub_sheets
-
-
-def find_S_D(sub_sheets):
-    """
-    Identifies which sub-sheet contains 'S' and which contains 'D'.
-    Returns (index_of_S, index_of_D).
-    If not found, returns (None, None).
-    """
-    index_of_S = None
-    index_of_D = None
-    for i, sheet in enumerate(sub_sheets):
-        M = len(sheet)  # each sheet is MxM
-        for rr in range(M):
-            for cc in range(M):
-                if sheet[rr][cc] == 'S':
-                    index_of_S = i
-                elif sheet[rr][cc] == 'D':
-                    index_of_D = i
-    return index_of_S, index_of_D
-
-
-def precompute_compatibility(sub_sheets):
-    """
-    Precomputes two 2D arrays (right_compat, down_compat) of size (total_sheets x total_sheets),
-    indicating if one sub-sheet can be placed to the left or above another.
+    vector<pair<int,int>> busStartCoords(N);
+    vector<string> busRoutes(N);
     
-    right_compat[i][j] = True  if sub_sheets[i] can be placed immediately to the LEFT of sub_sheets[j].
-    down_compat[i][j]  = True  if sub_sheets[i] can be placed immediately ABOVE sub_sheets[j].
-    """
-    total_sheets = len(sub_sheets)
-    M = len(sub_sheets[0])  # each is MxM
-
-    def boundary_type(ch):
-        # Treat 'S' or 'D' as 'T' when checking boundary matches
-        if ch in ('S','D'):
-            return 'T'
-        return ch
-
-    def match_ok(a, b):
-        # Return True if boundary_type(a) == boundary_type(b)
-        return (boundary_type(a) == boundary_type(b))
-
-    # Initialize
-    right_compat = [[False]*total_sheets for _ in range(total_sheets)]
-    down_compat  = [[False]*total_sheets for _ in range(total_sheets)]
-
-    for i in range(total_sheets):
-        sheetA = sub_sheets[i]
-        # Right edge of A, bottom edge of A
-        right_edge_A = [sheetA[r][M-1] for r in range(M)]
-        bottom_edge_A = sheetA[M-1]
-
-        for j in range(total_sheets):
-            if i == j:
-                continue
-            sheetB = sub_sheets[j]
-            # Left edge of B, top edge of B
-            left_edge_B = [sheetB[r][0] for r in range(M)]
-            top_edge_B  = sheetB[0]
-
-            # Check horizontal compatibility (A's right edge vs B's left edge)
-            horizontal_ok = True
-            for r in range(M):
-                if not match_ok(right_edge_A[r], left_edge_B[r]):
-                    horizontal_ok = False
-                    break
-
-            # Check vertical compatibility (A's bottom edge vs B's top edge)
-            vertical_ok = True
-            for c in range(M):
-                if not match_ok(bottom_edge_A[c], top_edge_B[c]):
-                    vertical_ok = False
-                    break
-
-            right_compat[i][j] = horizontal_ok
-            down_compat[i][j]  = vertical_ok
-
-    return right_compat, down_compat
-
-
-def build_full_map(final_layout, sub_sheets, N, M):
-    """
-    Given a completed final_layout (k x k) of sub-sheet indices,
-    build the full NxN map by copying each MxM sub-sheet into place.
-    Returns the NxN 2D list 'big_map'.
-    """
-    k = N // M
-    big_map = [['?']*N for _ in range(N)]
-    for r in range(k):
-        for c in range(k):
-            sheet_idx = final_layout[r][c]
-            block = sub_sheets[sheet_idx]
-            row_start = r * M
-            col_start = c * M
-            for rr in range(M):
-                for cc in range(M):
-                    big_map[row_start + rr][col_start + cc] = block[rr][cc]
-    return big_map
-
-
-def bfs_shortest_path(big_map, N):
-    """
-    Perform BFS in the NxN big_map to find the shortest distance from 'S' to 'D'.
-    'T','S','D' are traversable; 'L' is not.
-    Returns the distance as an integer (counting both S and D), or None if no path.
-    """
-    # Locate S and D
-    s_pos = None
-    d_pos = None
-    for r in range(N):
-        for c in range(N):
-            if big_map[r][c] == 'S':
-                s_pos = (r, c)
-            elif big_map[r][c] == 'D':
-                d_pos = (r, c)
-    if not s_pos or not d_pos:
-        return None  # Invalid map or something unexpected
-
-    # BFS
-    visited = [[False]*N for _ in range(N)]
-    queue = collections.deque()
-
-    # distance = 1 at S (since we count the S cell as step #1)
-    queue.append((s_pos[0], s_pos[1], 1))
-    visited[s_pos[0]][s_pos[1]] = True
-
-    while queue:
-        r, c, dist = queue.popleft()
-        if (r, c) == d_pos:
-            return dist
-        
-        for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            nr, nc = r + dr, c + dc
-            if 0 <= nr < N and 0 <= nc < N and not visited[nr][nc]:
-                ch = big_map[nr][nc]
-                if ch in ('T','S','D'):  # passable
-                    visited[nr][nc] = True
-                    queue.append((nr, nc, dist+1))
-
-    return None  # no path found
-
-
-def backtrack(pos, final_layout, used, right_compat, down_compat,
-              sub_sheets, N, M, best_distance):
-    """
-    Recursive function to place sub-sheets into final_layout (k x k) while
-    respecting boundary constraints. Once a complete arrangement is formed,
-    build the full map, BFS from S to D, and update best_distance.
-
-    pos           : integer from 0..(k*k - 1), the index of the cell in row-major order
-    final_layout  : 2D array (k x k) storing the chosen sub-sheet indices so far
-    used          : boolean list of length total_sheets (whether a sub-sheet is used)
-    right_compat  : precomputed horizontal compatibility
-    down_compat   : precomputed vertical compatibility
-    sub_sheets    : list of MxM sub-sheets
-    N, M          : dimensions
-    best_distance : a list or dict used to store the global best distance found
-                    (list/dict so we can modify it in-place in recursion)
-    Returns nothing, but may update best_distance[0].
-    """
-
-    k = N // M
-    # If we've assigned all k*k positions, compute BFS distance
-    if pos == k*k:
-        # Build the NxN arrangement and BFS
-        big_map = build_full_map(final_layout, sub_sheets, N, M)
-        dist = bfs_shortest_path(big_map, N)
-        if dist is not None:
-            if best_distance[0] is None or dist < best_distance[0]:
-                best_distance[0] = dist
-        return
-
-    r = pos // k
-    c = pos % k
-
-    # If this cell is already fixed (S-sub-sheet or D-sub-sheet), skip
-    if final_layout[r][c] is not None:
-        backtrack(pos+1, final_layout, used, right_compat, down_compat,
-                  sub_sheets, N, M, best_distance)
-        return
-
-    total_sheets = len(sub_sheets)
-    # Try each unused sub-sheet
-    for sheet_idx in range(total_sheets):
-        if not used[sheet_idx]:
-            # Check boundary constraints with left neighbor
-            if c > 0:
-                left_sheet = final_layout[r][c-1]
-                if not right_compat[left_sheet][sheet_idx]:
-                    continue
-            # Check boundary constraints with top neighbor
-            if r > 0:
-                up_sheet = final_layout[r-1][c]
-                if not down_compat[up_sheet][sheet_idx]:
-                    continue
-
-            # Place sub-sheet here
-            final_layout[r][c] = sheet_idx
-            used[sheet_idx] = True
-
-            # Recurse
-            backtrack(pos+1, final_layout, used, right_compat, down_compat,
-                      sub_sheets, N, M, best_distance)
-
-            # Undo
-            final_layout[r][c] = None
-            used[sheet_idx] = False
-
-
-def solve():
-    """
-    Orchestrates reading input, splitting into sub-sheets, identifying S and D,
-    precomputing boundaries, backtracking to find valid layouts, BFS to find
-    the shortest path from S to D, and finally printing the best distance.
-    """
-    # 1) Read inputs
-    N, M, raw_map = read_input()
-    k = N // M
-
-    # 2) Extract sub-sheets
-    sub_sheets = extract_sub_sheets(N, M, raw_map)
-
-    # 3) Find sub-sheet indices that contain S and D
-    index_of_S, index_of_D = find_S_D(sub_sheets)
-    if index_of_S is None or index_of_D is None:
-        # If for some reason there's no S or D, we can't solve
-        print(-1)
-        return
-
-    # 4) Precompute boundary compatibility
-    right_compat, down_compat = precompute_compatibility(sub_sheets)
-
-    # 5) Prepare the final layout (k x k) and track used sub-sheets
-    final_layout = [[None]*k for _ in range(k)]
-    used = [False]*(k*k)
-
-    # Place S at top-left, D at bottom-right
-    final_layout[0][0] = index_of_S
-    used[index_of_S] = True
-    final_layout[k-1][k-1] = index_of_D
-    used[index_of_D] = True
-
-    # 6) We'll store the best (minimum) distance found in a list of length 1
-    #    so we can modify it inside recursion.
-    best_distance = [None]  # best_distance[0] = an integer or None
-
-    # 7) Backtracking
-    backtrack(
-        pos=0,
-        final_layout=final_layout,
-        used=used,
-        right_compat=right_compat,
-        down_compat=down_compat,
-        sub_sheets=sub_sheets,
-        N=N,
-        M=M,
-        best_distance=best_distance
-    )
-
-    # 8) Print the result
-    # If best_distance[0] is None, that means we found no valid arrangement / path
-    if best_distance[0] is None:
-        # The problem states there's always a valid arrangement, but just in case:
-        print(0)
-    else:
-        print(best_distance[0])
-
-
-def main():
-    # Just call solve()
-    solve()
-
-
-# If you run this as a script (python solution.py), it will call main().
-if __name__ == '__main__':
-    main()
-
-
-
-2. new version
-def solve():
-    import sys
-    from collections import defaultdict
-    import heapq
-    
-    # A helper to read a line of input as stripped text
-    def read_str():
-        return sys.stdin.readline().strip()
-
-    # A helper to read a line of integers
-    def read_ints():
-        return list(map(int, read_str().split()))
-    
-    # Read the number of buses
-    N = int(read_str())
-
-    bus_start_coords = []
-    bus_route_strings = []
-    
-    # Read bus starts and route strings
-    for _ in range(N):
-        x, y = read_ints()
-        route_str = read_str()
-        bus_start_coords.append((x, y))
-        bus_route_strings.append(route_str)
-    
-    # Read cost array and waiting time array
-    cost_array = read_ints()
-    wait_array = read_ints()
-    
-    # Read K (number of bus stops specified)
-    K = int(read_str())
-    
-    city_stops = []
-    for _ in range(K):
-        x, y = read_ints()
-        city_stops.append((x, y))
-    
-    # Read source and destination
-    sx, sy = read_ints()
-    dx, dy = read_ints()
-    source = (sx, sy)
-    destination = (dx, dy)
-    
-    # Ensure source/destination are in stops set
-    stops_set = set(city_stops)
-    if source not in stops_set:
-        stops_set.add(source)
-        city_stops.append(source)
-    if destination not in stops_set:
-        stops_set.add(destination)
-        city_stops.append(destination)
-    
-    # Direction map
-    dir_map = {
-        'E':  (1, 0),
-        'W':  (-1, 0),
-        'N':  (0, 1),
-        'S':  (0, -1),
-        'NE': (1, 1),
-        'NW': (-1, 1),
-        'SE': (1, -1),
-        'SW': (-1, -1),
+    // Read the bus starts and the route strings
+    for (int i = 0; i < N; i++){
+        int x, y;
+        cin >> x >> y;
+        busStartCoords[i] = {x,y};
+        string route;
+        cin >> route;
+        busRoutes[i] = route;
     }
     
-    def parse_route(route_str):
-        chunks = []
-        i = 0
-        while i < len(route_str):
-            # direction can be 1 or 2 chars
-            if i + 1 < len(route_str) and route_str[i:i+2] in dir_map:
-                d = route_str[i:i+2]
-                i += 2
-            else:
-                d = route_str[i]
-                i += 1
-            dist_str = []
-            while i < len(route_str) and route_str[i].isdigit():
-                dist_str.append(route_str[i])
-                i += 1
-            dist_val = int("".join(dist_str))
-            chunks.append((d, dist_val))
-        return chunks
+    // Read cost array, waiting time array
+    vector<int> costArray(N), waitArray(N);
+    for (int i = 0; i < N; i++){
+        cin >> costArray[i];
+    }
+    for (int i = 0; i < N; i++){
+        cin >> waitArray[i];
+    }
     
-    bus_schedules = []
+    // Read K (number of extra bus stops)
+    int K;
+    cin >> K;
     
-    for i in range(N):
-        startX, startY = bus_start_coords[i]
-        wait_i = wait_array[i]
-        route_parsed = parse_route(bus_route_strings[i])
+    // We'll keep a set of all known stops
+    // (the final bus route endpoints are also considered stops by default)
+    vector<pair<int,int>> cityStops;
+    cityStops.reserve(K + 2); // just to avoid repeated reallocation
+    
+    for (int i = 0; i < K; i++){
+        int x, y;
+        cin >> x >> y;
+        cityStops.push_back({x,y});
+    }
+    
+    // Read source, destination
+    int sx, sy, dx, dy;
+    cin >> sx >> sy;
+    cin >> dx >> dy;
+    pair<int,int> source = {sx, sy};
+    pair<int,int> dest   = {dx, dy};
+    
+    // Put city stops in a set for quick membership
+    unordered_set<long long> stopsSet; // store as (x << 32) + y or something
+    auto encode = [&](int xx, int yy){
+        // a quick encoding of x,y into 64-bit
+        return ( (long long)xx << 32 ) ^ (long long)(yy & 0xffffffff);
+    };
+    
+    for (auto &p: cityStops){
+        stopsSet.insert(encode(p.first, p.second));
+    }
+    // ensure source, dest are also in the set
+    if (!stopsSet.count(encode(source.first, source.second))) {
+        cityStops.push_back(source);
+        stopsSet.insert(encode(source.first, source.second));
+    }
+    if (!stopsSet.count(encode(dest.first, dest.second))) {
+        cityStops.push_back(dest);
+        stopsSet.insert(encode(dest.first, dest.second));
+    }
+    
+    // Direction map: each diagonal or cardinal is 1 step in time & distance
+    map<string,pair<int,int>> dirMap = {
+        {"N",  {0, 1}},
+        {"S",  {0, -1}},
+        {"E",  {1, 0}},
+        {"W",  {-1,0}},
+        {"NE", {1, 1}},
+        {"NW", {-1,1}},
+        {"SE", {1, -1}},
+        {"SW", {-1,-1}}
+    };
+    
+    // Build bus schedules
+    // busSchedules[i] will be a vector of schedule entries for bus i
+    vector<vector<ScheduleEntry>> busSchedules(N);
+    
+    // For each bus, parse route, step by step, record stops
+    for (int i = 0; i < N; i++){
+        int startX = busStartCoords[i].first;
+        int startY = busStartCoords[i].second;
+        int wTime  = waitArray[i];
         
-        schedule = []
-        currX, currY = startX, startY
-        currTime = 0
-        cumulDist = 0
+        auto parsed = parseRoute(busRoutes[i]);
         
-        # Record the bus start
-        arrivalT = 0
-        departureT = arrivalT + wait_i
-        schedule.append((currX, currY, arrivalT, departureT, cumulDist))
+        vector<ScheduleEntry> schedule;
         
-        for (direction, dist) in route_parsed:
-            dx, dy = dir_map[direction]
-            for _step in range(dist):
-                # move one unit from (currX,currY)
-                currX += dx
-                currY += dy
-                # traveling 1 unit costs 1 minute from departureT
-                currTime = departureT + 1
-                cumulDist += 1
-                if (currX, currY) in stops_set:
-                    arrivalT = currTime
-                    departureT = arrivalT + wait_i
-                    schedule.append((currX, currY, arrivalT, departureT, cumulDist))
-                else:
-                    # bus doesn't wait at non-stop coords
-                    departureT = currTime
+        // initial stop: arrivalTime=0, departureTime=0+wTime, cumulDist=0
+        int currX = startX;
+        int currY = startY;
+        int currTime = 0; 
+        int cumulDist = 0;
         
-        # handle final coordinate as an official bus stop
-        final_coord = (currX, currY)
-        lastX, lastY, arrT, depT, cd = schedule[-1]
-        if (lastX, lastY) != final_coord:
-            # bus ends at final_coord but wasn't appended
-            arrT = depT + 1
-            depT = arrT + wait_i
-            cd += 1
-            schedule.append((final_coord[0], final_coord[1], arrT, depT, cd))
-        else:
-            # if the last recorded stop is the final, ensure final wait is shown
-            schedule[-1] = (
-                lastX,
-                lastY,
-                arrT,
-                arrT + wait_i,
-                cd
-            )
+        // record the first schedule entry
+        {
+            ScheduleEntry e;
+            e.x = currX;
+            e.y = currY;
+            e.arrivalTime   = 0;
+            e.departureTime = 0 + wTime;
+            e.cumulDist     = 0;
+            schedule.push_back(e);
+        }
         
-        bus_schedules.append(schedule)
-    
-    # For quick lookup, which buses stop at which coordinate
-    bus_presence = defaultdict(list)
-    for i in range(N):
-        for idxStop, (sx, sy, at, dt, distC) in enumerate(bus_schedules[i]):
-            bus_presence[(sx, sy)].append((i, idxStop))
-    
-    # We'll do a cost-based D' search with time feasibility
-    # State = (costSoFar, stopCoord, arrivalTime)
-    # We'll store best states in best_states[stop] -> list of (time, cost)
-    best_states = defaultdict(lambda: [])
-    
-    def is_dominated(stop, new_time, new_cost):
-        for (t, c) in best_states[stop]:
-            if t <= new_time and c <= new_cost:
-                return True
-        return False
-    
-    def add_state(stop, new_time, new_cost):
-        remove_list = []
-        for (t, c) in best_states[stop]:
-            if new_time <= t and new_cost <= c:
-                remove_list.append((t,c))
-        for rc in remove_list:
-            best_states[stop].remove(rc)
-        best_states[stop].append((new_time, new_cost))
-    
-    pq = []
-    heapq.heappush(pq, (0, source, 0))  # cost=0, stop=source, time=0
-    best_states[source].append((0, 0))
-    
-    answer = None
-    
-    while pq:
-        costSoFar, stopCur, timeCur = heapq.heappop(pq)
-        if stopCur == destination:
-            answer = costSoFar
-            break
-        if is_dominated(stopCur, timeCur, costSoFar):
-            continue
-        if stopCur not in bus_presence:
-            continue
+        // step through each direction chunk
+        for (auto &chunk: parsed){
+            string dir = chunk.first;
+            int dist   = chunk.second;
+            auto dxy   = dirMap[dir];
+            int dx = dxy.first, dy = dxy.second;
+            
+            for (int step = 0; step < dist; step++){
+                // bus departs the last coordinate at schedule.back().departureTime
+                // travel 1 minute
+                int departT = schedule.back().departureTime; 
+                currTime    = departT + 1; 
+                
+                // move 1 unit
+                currX += dx;
+                currY += dy;
+                cumulDist += 1;
+                
+                // if this new (currX,currY) is a known bus stop, bus arrives at currTime and waits
+                // else bus just passes through
+                long long key = encode(currX, currY);
+                if (stopsSet.count(key)){
+                    ScheduleEntry e;
+                    e.x = currX;
+                    e.y = currY;
+                    e.arrivalTime = currTime;
+                    e.departureTime = e.arrivalTime + wTime;
+                    e.cumulDist = cumulDist;
+                    schedule.push_back(e);
+                } else {
+                    // if not a known stop, the bus has no wait => we treat departureTime = currTime
+                    // But the next iteration's "departT" is from the last *actual stop* in schedule.
+                    // So let's just update schedule.back()'s departureTime for continuous travel?
+                    // Actually, no: we do not want to alter the last known stop’s departureTime 
+                    // because the bus was already "departed" from there.
+                    // We'll handle final arrival below if needed.
+                    
+                    // The bus is effectively traveling continuously. 
+                    // The "departureTime" for the next 1-unit step is the same as `currTime`.
+                    // We can do a small trick: temporarily store a "fake" schedule entry? 
+                    // Typically we do not store non-stops. So do nothing here:
+                    // We'll continue stepping.
+                }
+            }
+        }
         
-        for (bus_i, idxInSch) in bus_presence[stopCur]:
-            sx, sy, arrT, depT, baseDist = bus_schedules[bus_i][idxInSch]
-            if timeCur <= depT:
-                # can board
-                for nxt in range(idxInSch+1, len(bus_schedules[bus_i])):
-                    nx, ny, nArrT, nDepT, nDist = bus_schedules[bus_i][nxt]
-                    rideDist = nDist - baseDist
-                    rideCost = rideDist * cost_array[bus_i]
-                    newCost = costSoFar + rideCost
-                    newTime = nArrT
-                    if not is_dominated((nx, ny), newTime, newCost):
-                        add_state((nx, ny), newTime, newCost)
-                        heapq.heappush(pq, (newCost, (nx, ny), newTime))
+        // The bus's final coordinate is guaranteed to be (currX, currY) after all chunks.
+        // "All buses will be halted on the final bus stops." => final coordinate is a bus stop by default.
+        // We must ensure the last schedule entry is that final coordinate with a final wait.
+        auto &lastE = schedule.back();
+        if (lastE.x != currX || lastE.y != currY) {
+            // means the route ended at (currX,currY) but it wasn't appended
+            // that can happen if the final route step wasn't in the set of city stops
+            // But the problem states the final coordinate must also be a bus stop by default
+            // So let's forcibly add it:
+            ScheduleEntry e;
+            // the bus arrives 1 minute after the last departureTime
+            // i.e. if the bus never encountered a stop in the last chunk, we do:
+            int lastDepT = lastE.departureTime;
+            int arriveT  = lastDepT + 1; 
+            e.x = currX;
+            e.y = currY;
+            e.arrivalTime = arriveT;
+            e.departureTime = arriveT + wTime; 
+            e.cumulDist = lastE.cumulDist + 1; 
+            schedule.push_back(e);
+        } else {
+            // If it *is* the same coordinate but we haven't applied the final wait, do so:
+            int arriveT = lastE.arrivalTime;
+            // final wait:
+            schedule.back().departureTime = arriveT + wTime;
+        }
+        
+        busSchedules[i] = schedule;
+    }
     
-    if answer is None:
-        print("Impossible")
-    else:
-        print(answer)
+    // Build a map from (x,y) -> vector of (busIndex, scheduleIndex)
+    // to see which buses and which schedule item correspond to each stop
+    unordered_map<long long, vector<pair<int,int>>> busPresence; 
+    for (int i = 0; i < N; i++){
+        for (int sIdx = 0; sIdx < (int)busSchedules[i].size(); sIdx++){
+            int xx = busSchedules[i][sIdx].x;
+            int yy = busSchedules[i][sIdx].y;
+            long long key = encode(xx, yy);
+            busPresence[key].push_back({i, sIdx});
+        }
+    }
+    
+    // We'll do a cost-based search with time feasibility
+    // State = (costSoFar, (x,y), arrivalTime)
+    // Priority queue is min-heap by costSoFar
+    typedef long long ll;
+    struct State {
+        ll cost;
+        int x, y;
+        int time;
+        bool operator>(const State &o) const {
+            return cost > o.cost;
+        }
+    };
+    
+    // We'll keep a map from (x,y) -> vector of (time, cost) for non-dominated states
+    // Because K <= 20 and N <= 20, the total unique stops are not huge. 
+    // We'll do an unordered_map + vector approach:
+    unordered_map<ll, vector<pair<int,ll>>> best; // key=(x,y), value=list of (time, cost)
+    
+    // A function to check if (timeNew, costNew) is dominated by existing states
+    auto isDominated = [&](ll keyCoord, int tNew, ll cNew){
+        if (!best.count(keyCoord)) return false; // no states => cannot be dominated
+        for (auto &st : best[keyCoord]){
+            // st = (tOld, cOld)
+            int tOld = st.first;
+            ll cOld  = st.second;
+            if (tOld <= tNew && cOld <= cNew) {
+                return true; // we are dominated
+            }
+        }
+        return false;
+    };
+    
+    // Function to add a new state and remove any states that it dominates
+    auto addState = [&](ll keyCoord, int tNew, ll cNew){
+        // remove states that are dominated by this new one
+        auto &lst = best[keyCoord];
+        vector<pair<int,ll>> newVec;
+        for (auto &st : lst){
+            int tOld = st.first; 
+            ll  cOld = st.second;
+            // if we dominate the old => skip it
+            if (tNew <= tOld && cNew <= cOld){
+                // dominated => remove
+            } else {
+                newVec.push_back(st);
+            }
+        }
+        newVec.push_back({tNew, cNew});
+        best[keyCoord] = move(newVec);
+    };
+    
+    priority_queue< State, vector<State>, greater<State> > pq;
+    
+    // Start from source with cost=0, time=0
+    ll startKey = encode(source.first, source.second);
+    best[startKey].push_back({0, 0});
+    
+    pq.push({0, source.first, source.second, 0});
+    
+    long long answer = -1;
+    ll destKey = encode(dest.first, dest.second);
+    
+    while(!pq.empty()){
+        auto st = pq.top();
+        pq.pop();
+        
+        ll costSoFar = st.cost;
+        int xCur = st.x, yCur = st.y;
+        int tCur = st.time;
+        
+        if (xCur == dest.first && yCur == dest.second){
+            answer = costSoFar;
+            break;
+        }
+        // if this state is already dominated, skip
+        if (isDominated(encode(xCur,yCur), tCur, costSoFar)){
+            continue;
+        }
+        
+        // check which buses are here
+        ll keyHere = encode(xCur, yCur);
+        if (!busPresence.count(keyHere)){
+            // no bus stops here
+            continue;
+        }
+        auto &busesHere = busPresence[keyHere]; // vector of (bus_i, idxInSchedule)
+        
+        // For each bus i that visits this stop
+        for (auto &bi: busesHere){
+            int bus_i = bi.first;
+            int sIdx  = bi.second;
+            
+            // That bus's schedule entry
+            auto &entry = busSchedules[bus_i][sIdx];
+            int depT = entry.departureTime;
+            int arrT = entry.arrivalTime;
+            int baseDist = entry.cumulDist;
+            
+            // We can board if we arrive by the time it departs
+            // (tCur <= depT means bus hasn't left yet).
+            if (tCur <= depT){
+                // We can ride forward to stops sIdx+1..end
+                for (int nxt = sIdx+1; nxt < (int)busSchedules[bus_i].size(); nxt++){
+                    auto &nEntry = busSchedules[bus_i][nxt];
+                    int nArrT = nEntry.arrivalTime;
+                    ll rideDist = (long long)nEntry.cumulDist - (long long)baseDist;
+                    ll rideCost = rideDist * costArray[bus_i];
+                    ll newCost = costSoFar + rideCost;
+                    int newTime = nArrT; 
+                    
+                    ll nKey = encode(nEntry.x, nEntry.y);
+                    // check dominance
+                    if (!isDominated(nKey, newTime, newCost)){
+                        addState(nKey, newTime, newCost);
+                        pq.push({newCost, nEntry.x, nEntry.y, newTime});
+                    }
+                }
+            }
+        }
+    }
+    
+    if (answer < 0) {
+        cout << "Impossible\n";
+    } else {
+        cout << answer << "\n";
+    }
+    
+    return 0;
+}
 
 
-# --- To run locally, just do: ---
-#    python this_script.py
-# and paste in the full input. For example:
-#
-# 6
-# 2 0
-# E4N2
-# 0 0
-# E2E2
-# 2 0
-# N2N2
-# 4 0
-# E2N2
-# 6 2
-# N2W4
-# 4 4
-# W2
-# 1 2 20 0 2 1
-# 2 1 30 80 10 100
-# 4
-# 2 4
-# 4 4
-# 6 2
-# 4 0
-# 2 0
-# 2 4
-#
-# It should output: 16
 
+3.
 
-3. question 3
-
-def solve():
-    import sys
-    data = sys.stdin.read().strip().split('\n')
-    
-    # Read number of substrings
-    N = int(data[0])
-    
-    # Each of next N lines: substring, cost, weight
-    substrings = []
-    for i in range(1, N+1):
-        parts = data[i].split()
-        sub_str = parts[0]
-        cost = int(parts[1])
-        weight = int(parts[2])
-        substrings.append((sub_str, cost, weight))
-    
-    # Last line: main string
-    main_string = data[N+1]
-    
-    ##################################################
-    # Part 1: Find minimal cost to cover main_string.
-    ##################################################
-    # dp[i] = minimum cost to form main_string[:i] as subsequence.
-    # We'll store parent pointers to reconstruct usage of each substring.
-    
-    T = main_string
-    m = len(T)
-    INF = 10**15
-    
-    dp = [INF]*(m+1)
-    dp[0] = 0
-    parent_index = [-1]*(m+1)     # from which index i did we come?
-    parent_sub = [-1]*(m+1)       # which substring was used?
-    
-    # Precompute nextPos(i, j) = new index after matching substring j from T[i...].
-    def precompute_next_positions(T, substrings):
-        m = len(T)
-        n = len(substrings)
-        next_pos = [[-1]*n for _ in range(m+1)]
-        
-        for j_idx, (sub_str, _, _) in enumerate(substrings):
-            s = sub_str
-            # For each start position in T, figure out where we land after matching s
-            for start in range(m+1):
-                if start == m:
-                    # If s is non-empty, can't match from empty remainder
-                    next_pos[start][j_idx] = -1
-                    continue
-                # Try to match s in T[start..]
-                cur = start
-                matched_count = 0
-                for ch in s:
-                    while cur < m and T[cur] != ch:
-                        cur += 1
-                    if cur == m:
-                        matched_count = -1
-                        break
-                    matched_count += 1
-                    cur += 1
-                if matched_count == len(s):
-                    next_pos[start][j_idx] = cur
-                else:
-                    next_pos[start][j_idx] = -1
-        
-        return next_pos
-    
-    next_pos = precompute_next_positions(T, substrings)
-    
-    # Fill dp
-    for i in range(m+1):
-        if dp[i] == INF:
-            continue
-        cost_so_far = dp[i]
-        # Try using each substring
-        for j_idx, (sub_str, sub_cost, sub_weight) in enumerate(substrings):
-            k = next_pos[i][j_idx]
-            if k != -1:  # can match substring j_idx from T[i...]
-                new_cost = cost_so_far + sub_cost
-                if new_cost < dp[k]:
-                    dp[k] = new_cost
-                    parent_index[k] = i
-                    parent_sub[k] = j_idx
-    
-    # Minimum cost to form full main_string = dp[m]
-    # Reconstruct usage counts
-    usage_counts = [0]*N
-    cur = m
-    while cur > 0:
-        p = parent_index[cur]
-        j_idx = parent_sub[cur]
-        usage_counts[j_idx] += 1
-        cur = p
-    
-    ##################################################
-    # Part 2: From chosen substrings, build the ladder.
-    #
-    # We have usage_counts[i] times substring i.
-    # Each substring i has:
-    #   ability_i = sum of (alphabetical value of its chars)
-    #   weight_i  = w_i
-    #
-    # We want the tallest valid stack: for each item on the bottom,
-    #    ability(bottom) >= total weight of everything above it.
-    ##################################################
-    
-    # Build the list (multiset) of chosen items
-    # item = (ability, weight)
-    items = []
-    for i, (sub_str, c_i, w_i) in enumerate(substrings):
-        count = usage_counts[i]
-        if count == 0:
-            continue
-        # Compute carrying ability
-        ability = sum((ord(ch) - ord('a') + 1) for ch in sub_str)
-        for _ in range(count):
-            items.append((ability, w_i))
-    
-    # If no items chosen (main_string might be empty?), handle that edge case
-    if not items:
-        # Means main_string is empty or was formed with no substrings somehow.
-        # The maximum height is 0 if no items exist.
-        print(0)
-        return
-    
-    # We can choose to use or NOT use some items for the ladder.
-    # We'll do a DP that attempts to find the longest valid stacking.
-    
-    # Sort items by descending ability
-    items.sort(key=lambda x: x[0], reverse=True)
-    
-    M = len(items)
-    # dpC[i] = max count of stack if item i is at the bottom
-    # dpW[i] = total weight of that stack
-    dpC = [1]*M
-    dpW = [items[i][1] for i in range(M)]  # start with just the weight of the item itself
-    
-    # Fill from largest-ability item to smaller
-    for i in range(M):
-        for j in range(i+1, M):
-            # items[i] is below, items[j] is above
-            # condition: items[i].ability >= dpW[j]
-            if items[i][0] >= dpW[j]:
-                # we can place the entire stack that starts with j on top of i
-                if dpC[i] < 1 + dpC[j]:
-                    dpC[i] = 1 + dpC[j]
-                    dpW[i] = items[i][1] + dpW[j]
-                elif dpC[i] == 1 + dpC[j]:
-                    # tie in count, we can optionally update dpW if smaller
-                    # not strictly needed to get the maximum count
-                    possible_weight = items[i][1] + dpW[j]
-                    if possible_weight < dpW[i]:
-                        dpW[i] = possible_weight
-    
-    # The maximum ladder height is the maximum of dpC
-    answer = max(dpC)
-    
-    print(answer)
