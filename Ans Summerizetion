@@ -766,5 +766,119 @@ int main(){
 
 
 
-3.
+3. python   code
+def solve():
+    import sys
+    data = sys.stdin.read().strip().split('\n')
+    
+    # 1) Parse input
+    N = int(data[0])
+    idx = 1
+    substrings = []
+    for _ in range(N):
+        s, c, w = data[idx].split()
+        c, w = int(c), int(w)
+        idx += 1
+        substrings.append((s, c, w))
+    main_string = data[idx]
+    
+    # 2) Part 1: Minimal cost to cover main_string as a subsequence
+    T = main_string
+    m = len(T)
+    INF = 10**15
+    
+    # dp[i] = minimal cost to match T[:i] as subsequence
+    dp = [INF]*(m+1)
+    dp[0] = 0
+    
+    # Parent pointers to backtrack usage
+    parent_index = [-1]*(m+1)
+    parent_sub   = [-1]*(m+1)
+    
+    # Precompute, for each substring s, how it advances T from any position i
+    def build_advance_table(sub, T):
+        ret = [0]*(m+1)
+        for i in range(m+1):
+            p = i
+            for c in sub:
+                if p < m and T[p] == c:
+                    p += 1
+            ret[i] = p
+        return ret
+    
+    advance_tables = [build_advance_table(s, T) for (s, _, _) in substrings]
+    
+    # Fill dp
+    for i in range(m+1):
+        if dp[i] == INF:
+            continue
+        cost_so_far = dp[i]
+        # Try appending each available substring
+        for j, (sub_s, cost_j, weight_j) in enumerate(substrings):
+            nxt = advance_tables[j][i]
+            new_cost = cost_so_far + cost_j
+            if new_cost < dp[nxt]:
+                dp[nxt] = new_cost
+                parent_index[nxt] = i
+                parent_sub[nxt]   = j
+    
+    # Reconstruct the usage counts of substrings
+    usage_counts = [0]*N
+    cur = m
+    while cur > 0:
+        p = parent_index[cur]
+        j = parent_sub[cur]
+        usage_counts[j] += 1
+        cur = p
+    
+    # 3) Part 2: Build the maximum ladder from the chosen multiset
+    # Create a list of items = (ability, weight)
+    items = []
+    for i, (s, c, w) in enumerate(substrings):
+        count = usage_counts[i]
+        if count > 0:
+            # carrying ability = sum of letter-values
+            ability = sum((ord(ch) - ord('a') + 1) for ch in s)
+            for _ in range(count):
+                items.append((ability, w))
+    
+    # If no items chosen at all (edge case)
+    if not items:
+        print(0)
+        return
+    
+    # We want the maximum number of items we can stack in *some* order
+    #
+    # Condition for stacking: if an item with ability A is below,
+    # it must carry the total weight of all items above it.
+    #
+    # We'll do a DP approach over "ascending ability" with a dimension for
+    # the 'usedW' = total weight of the stack (so far) on top.
+    # - dp[i][usedW] = maximum stack count using only the first i items
+    #   (meaning items[:i]) such that the top portion weighs usedW
+    #
+    # If we can place item i-1 underneath a stack of weight usedW (i.e. usedW <= ability),
+    # then the new stack weight is usedW + item_weight. We'll update dp[i][newWeight].
+    
+    items.sort(key=lambda x: x[0])  # ascending by ability
+    M = len(items)
+    sumW = sum(w for (_, w) in items)
+    
+    dp2 = [[0]*(sumW+1) for _ in range(M+1)]
+    
+    for i in range(1, M+1):
+        (ability_i, weight_i) = items[i-1]
+        for usedW in range(sumW+1):
+            # 1) Skip item i-1
+            dp2[i][usedW] = max(dp2[i][usedW], dp2[i-1][usedW])
+            # 2) Take item i-1, if feasible
+            if usedW <= ability_i:
+                newW = usedW + weight_i
+                if newW <= sumW:
+                    dp2[i][newW] = max(dp2[i][newW], dp2[i-1][usedW] + 1)
+    
+    # The answer is the max dp2[M][w] over all w
+    ans = max(dp2[M])
+    print(ans)
+
 
