@@ -1,1 +1,290 @@
 Runtime error
+
+
+
+
+
+
+
+
+Q2
+
+
+
+
+Optimize CostMarks: 100
+Problem Description
+Liz needs to travel from one location in a city to another using buses. Due to limited nighttime service, she has to carefully plan her route to minimize costs. She can access real-time information about available buses, their departure times, routes, and costs per unit distance travelled.
+
+Your Task:
+
+Help Liz find the most cost-effective bus itinerary from her starting location (Source) to her destination (Destination).
+
+Information Given:
+
+N: The number of available buses.
+Bus Routes (N lines): Each line represents a bus route, described as a string of directions:
+Each direction will be one of the characters: 'E', 'W', 'S', 'N', 'NE', 'NW', 'SE', 'SW' representing East, West, South, North, Northeast, Northwest, Southeast, Southwest.
+Bus Route Map
+
+Numbers following the directions indicate the distance travelled in that direction (e.g., "NE4E3S1" means 4 units NE, 3 units E, and 1 unit S).
+Cost Array (N elements): The cost of traveling one unit distance on each bus.
+Waiting Time Array (N elements): Each line contains the waiting time at each stop along the route for a specific bus. Waiting times are given in minutes and include the starting bus stop.
+K: The number of bus stops in the city.
+Bus Stop Coordinates (K lines): Each line provides the coordinates of a bus stop.
+Source Coordinates: Liz's starting location.
+Destination Coordinates: Liz's desired endpoint.
+Note that Liz can wait for a bus that is yet to arrive at her waiting bus stop, but she cannot board a bus that has already departed from the bus stop. Each bus will take one unit of time for travelling one unit of distance. Here one unit of distance means travelling from one corner to any another corner of the cell. All the buses start from their respective source at the same time (0th minute). Every bus's starting and ending stops are bus stops by default. The bus will stop at intermediate bus stops also if the bus stop falls in the route of the bus. The whole journey is within the same day.
+
+Constraints
+1 <= N, K <= 20
+
+1 <= x, y co-ordinates <= 100
+
+Buses are uni-directional.
+
+All the buses will be halted on the final bus stops.
+
+All buses will wait for a specified duration at each bus stop, including the starting stop.
+
+Unit of time is minutes.
+
+Input
+First line consists of a single integer N, denoting the number of buses.
+
+The next N×2 lines contain two space-separated integers representing the x, y coordinates of the buses starting points, followed by their respective directions on separate lines.
+
+Next line consists of N space separated integers denoting the Cost array.
+
+Next line consists of N space separated integers denoting the Waiting Time array.
+
+Next line consists of an integer K denoting the number of bus stops (only limited to how many given in the input, this may or may not include the default bus stops)
+
+Next K lines consist of two space separated integers denoting the x, y coordinates of the bus stops
+
+Second line from the last consists of the x, y coordinates of Liz's current position.
+
+Last line consists of the x, y coordinates of destination.
+
+Output
+Print a single integer denoting the minimum cost Liz must spend to reach the destination. If it is impossible to reach, print "Impossible".
+
+Time Limit (secs)
+1
+
+Examples
+Example1
+
+Input
+
+6
+
+2 0
+
+E4N2
+
+0 0
+
+E2E2
+
+2 0
+
+N2N2
+
+4 0
+
+E2N2
+
+6 2
+
+N2W4
+
+4 4
+
+W2
+
+1 2 20 0 2 1
+
+2 1 30 80 10 100
+
+4
+
+2 4
+
+4 4
+
+6 2
+
+4 0
+
+2 0
+
+2 4
+
+Output
+
+16
+
+Explanation
+
+From the given input, it is understandable that -
+
+Considering the bus stops, the paths each bus follows is given below.
+
+Bus0 - (2, 0) -> (4, 0) -> (6, 2)
+
+Bus1 - (0, 0) -> (2,0) -> (4, 0)
+
+Bus2 - (2, 0) -> (2, 4)
+
+Bus3 - (4, 0) -> (6, 2)
+
+Bus4 - (6, 2) -> (4, 4) -> (2, 4)
+
+Bus5 - (4, 4) -> (2, 4)
+
+The table below displays the departure times of each bus from the respective bus stops.
+
+com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@5bf61e67:image2.png
+
+*NA indicates that the bus is not going to that specific bus stop in its entire journey.
+
+From the above table, we can know until what time we can wait for each bus in the respective stations. To optimize the cost, Liz can take the bus0 from (2, 0) until (6, 2) and then change to bus4 and travel until (4, 4) then change to bus5 and travel until (2, 4) which will incur a cost of 1 * 6 + 2 * 4 + 1 * 2 = 16
+
+There is a direct bus from (2, 0) to (2, 4) but she cannot take it because it will not result in minimum cost. Hence print 16.
+
+Example 2
+
+Input
+
+6
+
+1 1
+
+N3
+
+1 1
+
+NE3
+
+1 1
+
+NE3N3
+
+1 1
+
+N3NE3
+
+4 7
+
+E2NW2
+
+4 7
+
+W2NE2
+
+1 2 3 4 5 6
+
+1 2 3 4 5 60
+
+5
+
+1 1
+
+1 4
+
+4 4
+
+4 7
+
+4 9
+
+1 1
+
+4 9
+
+Output
+
+39
+
+Explanation
+
+From the given input, it is understandable that -
+
+Considering the bus stops, the paths each bus follows is given below.
+
+Bus0 - (1, 1) -> (1, 4)
+
+Bus1 - (1, 1) -> (4, 4)
+
+Bus2 - (1, 1) -> (4, 4) -> (4, 7)
+
+Bus3 - (1, 1) -> (1, 4) -> (4, 7)
+
+Bus4 - (4, 7) -> (4, 9) via the point (6, 7)
+
+Bus5 - (4, 7) -> (4, 9) via the point (2, 7)
+
+The table below displays the departure times of each bus from the respective bus stops.
+
+com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@5bf61e67:image3.png
+
+From the above table, we can know until what time we can wait for each bus in the respective stations. To optimize the cost, Liz can take the bus1 from (1, 1) until (4, 4) and then change to bus2 and travel until (4, 7) then change to bus5 and travel until (4, 9) which will incur a cost of 2 * 3 + 3 * 3 + 6 * 4 = 39
+
+No other selections will give less than 39, hence print the same.
+
+Example 3
+
+Input
+
+3
+
+2 2
+
+NE3SE3
+
+1 5
+
+E2E2
+
+2 8
+
+SE3NE3
+
+10 20 30
+
+10 50 20
+
+3
+
+5 5
+
+8 2
+
+1 5
+
+1 5
+
+8 2
+
+Output
+
+Impossible
+
+Explanation
+
+From the given input, it is understandable that -
+
+Considering the bus stops, the paths each bus follows is given below.
+
+Bus0 - (2, 2) -> (5, 5) -> (8, 2)
+
+Bus1 - (1, 5) -> (5, 5)
+
+Bus2 - (2, 8) -> (5, 5) -> (8, 8)
+
+The table below displays the departure times of each bus from the respective bus stops.
+
+com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@5bf61e67:image4.png
+
+From the above table, we can know until what time we can wait for each bus in the respective stations. After reaching (5, 5) from (1, 1) in bus1, Liz cannot get into a bus to reach (8, 2), hence print the impossible.
