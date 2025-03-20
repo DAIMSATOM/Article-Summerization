@@ -1,270 +1,95 @@
-3. ye wala check kar ek bar
-def solve():
-    import sys
-    data = sys.stdin.read().strip().split('\n')
-    
-    # ----------------------------------------------------------------
-    # PARSE INPUT
-    # ----------------------------------------------------------------
-    idx = 0
-    N = int(data[idx]); idx += 1
-    
-    substrings = []
-    for _ in range(N):
-        # substring, cost, weight
-        line = data[idx].split()
-        idx += 1
-        s = line[0]
-        c = int(line[1])
-        w = int(line[2])
-        substrings.append((s, c, w))
-        
-    main_str = data[idx].strip()
-    idx += 1
-    
-    # ----------------------------------------------------------------
-    # PHASE 1: MINIMUM-COST SUBSEQUENCE COVER
-    #   dp[pos] = min cost to cover main_str[pos:] as a subsequence
-    #   We'll also reconstruct which substring was chosen
-    # ----------------------------------------------------------------
-    M = len(main_str)
-    
-    # Precompute nextPos[pos][i]: position in main_str after matching substr i from pos
-    # If not matchable, store -1
-    nextPos = [[-1]*N for _ in range(M+1)]
-    
-    # A small helper to find nextPos by two-pointer approach
-    def match_subsequence(start, sub):
-        """Returns the index in main_str immediately after matching 'sub'
-           starting at index 'start', or -1 if 'sub' not a subsequence."""
-        p1 = start
-        p2 = 0
-        while p1 < M and p2 < len(sub):
-            if main_str[p1] == sub[p2]:
-                p2 += 1
-            p1 += 1
-        if p2 == len(sub):
-            return p1  # the position after we've matched all chars
-        else:
-            return -1   # not matchable
-    
-    # Fill in nextPos for pos in [0..M], for each candidate substring i
-    # nextPos[M][i] is always -1 (cannot match anything from beyond end),
-    # but we won't actually need nextPos[M][i] except to see it is -1 (no matching).
-    for pos in range(M):
-        for i, (sub, cost, w) in enumerate(substrings):
-            nxt = match_subsequence(pos, sub)
-            nextPos[pos][i] = nxt
-    
-    # dp[pos]: minimal cost to cover main_str[pos:]
-    INF = 10**15
-    dp = [INF]*(M+1)
-    dp[M] = 0
-    
-    # choice[pos] = index of substring chosen at pos
-    choice = [-1]*(M+1)
-    
-    # Fill dp bottom-up
-    for pos in range(M-1, -1, -1):
-        best_cost = INF
-        best_sub_i = -1
-        for i, (sub, cost, w) in enumerate(substrings):
-            nxt = nextPos[pos][i]
-            if nxt != -1:
-                cand = cost + dp[nxt]
-                if cand < best_cost:
-                    best_cost = cand
-                    best_sub_i = i
-        dp[pos] = best_cost
-        choice[pos] = best_sub_i
-    
-    # Reconstruct the chosen multiset by walking from pos=0
-    chosen_substrings = []
-    pos = 0
-    while pos < M:
-        i = choice[pos]
-        if i == -1:
-            # This means it's impossible, but problem states it should be possible.
-            # In a real contest, you'd handle "impossible" case if it arises.
-            break
-        chosen_substrings.append(i)
-        pos = nextPos[pos][i]
-    
-    # ----------------------------------------------------------------
-    # PHASE 2: MAXIMUM-HEIGHT LADDER
-    #
-    # We have a multiset of chosen substrings. Each usage is distinct.
-    # We'll sort them by ability (sum of alphabetical positions).
-    # Then do a DP to find the tallest stack.
-    # ----------------------------------------------------------------
-    
-    # Build list of (ability, weight) for each used substring
-    # ability(sub) = sum of 1-based positions of letters
-    def ability_of(s):
-        return sum((ord(ch) - ord('a') + 1) for ch in s)
-    
-    items = []  # Each element: (A, W)
-    for i in chosen_substrings:
-        sub, c, w = substrings[i]
-        A = ability_of(sub)
-        items.append((A, w))
-    
-    # Edge case: if no substrings chosen, the height is 0
-    if not items:
-        print(0)
-        return
-    
-    # Sort by ability ascending
-    items.sort(key=lambda x: x[0])  # (A, W)
-    
-    # dp[i] = max height of stack with item i at the BOTTOM
-    # sumW[i] = total weight of that stack
-    M2 = len(items)
-    dp2 = [1]*M2
-    sumW = [w for (_, w) in items]  # initially just itself
-    
-    max_height = 1
-    
-    for i in range(M2):
-        A_i, W_i = items[i]
-        # Base case: dp2[i] = 1, sumW[i] = W_i
-        # Try to put a built stack j on top of i, i.e. i is below j
-        for j in range(i):
-            A_j, W_j = items[j]
-            # We can only stack j above i if sumW[j] <= ability(i) = A_i
-            if sumW[j] <= A_i:
-                # This would yield height = dp2[j] + 1
-                if dp2[j] + 1 > dp2[i]:
-                    dp2[i] = dp2[j] + 1
-                    sumW[i] = sumW[j] + W_i
-                elif dp2[j] + 1 == dp2[i]:
-                    # If same height, choose smaller sumWeight to keep it "lighter"
-                    # (This step is optional for just the height; it can help keep
-                    #  the tower more flexible for further stacking in some variants)
-                    candidate_sumW = sumW[j] + W_i
-                    if candidate_sumW < sumW[i]:
-                        sumW[i] = candidate_sumW
-        
-        if dp2[i] > max_height:
-            max_height = dp2[i]
-    
-    # ----------------------------------------------------------------
-    # OUTPUT
-    # ----------------------------------------------------------------
-    print(max_height)
+Road Navigation-----------------------------------------------------------------------
+from collections import deque
 
+# Read number of roads
+N = int(input().strip())
 
-# ----------------------------------------------------------------
-# If you prefer to run local tests or want a main-guard:
-# 
-# if __name__ == "__main__":
-#     solve()
-# ----------------------------------------------------------------
+# Read road definitions
+roads = []
+for _ in range(N):
+    x1, y1, x2, y2 = map(int, input().split())
+    roads.append((x1, y1, x2, y2))
 
+# Read starting and destination positions
+start_x, start_y = map(int, input().split())
+dest_x, dest_y = map(int, input().split())
+start = (start_x, start_y)
+dest = (dest_x, dest_y)
 
+# Build adjacency list for the road graph
+adjacency = {}  # dictionary: point -> list of neighboring points
+allowed_points = set()  # set of all points that lie on any road
 
+for (x1, y1, x2, y2) in roads:
+    # Normalize coordinates (ensure x1 <= x2 and y1 <= y2 for iteration)
+    if x1 == x2:  # vertical road
+        x = x1
+        y_start, y_end = sorted([y1, y2])
+        for y in range(y_start, y_end + 1):
+            allowed_points.add((x, y))
+        # Add edges between consecutive vertical points
+        for y in range(y_start, y_end):
+            p1 = (x, y)
+            p2 = (x, y + 1)
+            # Initialize adjacency entries if not present
+            adjacency.setdefault(p1, []).append(p2)
+            adjacency.setdefault(p2, []).append(p1)
+    elif y1 == y2:  # horizontal road
+        y = y1
+        x_start, x_end = sorted([x1, x2])
+        for x in range(x_start, x_end + 1):
+            allowed_points.add((x, y))
+        # Add edges between consecutive horizontal points
+        for x in range(x_start, x_end):
+            p1 = (x, y)
+            p2 = (x + 1, y)
+            adjacency.setdefault(p1, []).append(p2)
+            adjacency.setdefault(p2, []).append(p1)
+    # (If a road is a single point x1==x2 and y1==y2, handle below)
 
-4.
-def solve():
-    import sys
-    from math import gcd
-    from collections import deque
-    
-    # Step 1: Read number of roads.
-    input_line = sys.stdin.readline().strip()
-    while not input_line:  # skip any empty lines
-        input_line = sys.stdin.readline().strip()
-    N = int(input_line)
-    
-    # Step 2: Read the N roads.
-    roads = []
-    for _ in range(N):
-        line = sys.stdin.readline().strip()
-        while not line:  # skip empty lines if they occur
-            line = sys.stdin.readline().strip()
-        x1, y1, x2, y2 = map(int, line.split())
-        roads.append((x1, y1, x2, y2))
-    
-    # Step 3: Read Rahul's current position (start).
-    line = sys.stdin.readline().strip()
-    while not line:
-        line = sys.stdin.readline().strip()
-    x_s, y_s = map(int, line.split())
-    
-    # Step 4: Read Rahul's destination.
-    line = sys.stdin.readline().strip()
-    while not line:
-        line = sys.stdin.readline().strip()
-    x_g, y_g = map(int, line.split())
-    
-    # Step 5: Prepare data structures for the graph.
-    vertex_id = {}  # maps (x, y) -> integer index
-    edges = []      # adjacency list; edges[i] = list of neighbors of vertex i
-    
-    def add_vertex(point):
-        """Map the (x, y) 'point' to a unique vertex index, creating if needed."""
-        if point not in vertex_id:
-            vertex_id[point] = len(edges)
-            edges.append([])
-        return vertex_id[point]
-    
-    def add_edge(p1, p2):
-        """Add a bidirectional edge between lattice points p1 and p2 with cost 1."""
-        v1 = add_vertex(p1)
-        v2 = add_vertex(p2)
-        edges[v1].append(v2)
-        edges[v2].append(v1)
-    
-    # Step 6: Convert each road into discrete lattice points and build graph edges.
-    for (x1, y1, x2, y2) in roads:
-        dx = x2 - x1
-        dy = y2 - y1
-        
-        # Zero-length road:
-        if dx == 0 and dy == 0:
-            add_vertex((x1, y1))
-            continue
-        
-        # gcd-based step to list all integer points on this road
-        g = gcd(abs(dx), abs(dy))
-        step_x = dx // g
-        step_y = dy // g
-        
-        # Generate all points from (x1, y1) up to (x2, y2) in unit steps
-        px, py = x1, y1
-        points_on_road = []
-        for _ in range(g + 1):
-            points_on_road.append((px, py))
-            px += step_x
-            py += step_y
-        
-        # Connect consecutive points on the road
-        for i in range(len(points_on_road) - 1):
-            add_edge(points_on_road[i], points_on_road[i+1])
-    
-    # Step 7: Ensure start and goal exist in the graph
-    if (x_s, y_s) not in vertex_id or (x_g, y_g) not in vertex_id:
-        print("Impossible.")
-        return
-    
-    start_idx = vertex_id[(x_s, y_s)]
-    goal_idx = vertex_id[(x_g, y_g)]
-    
-    # Step 8: BFS for shortest path (number of edges).
-    dist = [-1] * len(edges)
-    dist[start_idx] = 0
-    
-    queue = deque([start_idx])
-    
-    while queue:
-        u = queue.popleft()
-        if u == goal_idx:
-            print(dist[u])
-            return
-        for v in edges[u]:
-            if dist[v] == -1:  # unvisited
-                dist[v] = dist[u] + 1
-                queue.append(v)
-    
-    # If goal wasn't reached, it's impossible.
+# If any road was just a single point, ensure it's in adjacency (as isolated node)
+for (x1, y1, x2, y2) in roads:
+    if x1 == x2 and y1 == y2:
+        p = (x1, y1)
+        allowed_points.add(p)
+        adjacency.setdefault(p, [])  # no neighbors because it's a single-point road
+
+# Check if start and destination are on the road network
+if start not in allowed_points or dest not in allowed_points:
     print("Impossible.")
+    exit(0)
+
+# If start equals destination, shortest distance is 0
+if start == dest:
+    print(0)
+    exit(0)
+
+# BFS initialization
+queue = deque()
+queue.append((start, 0))  # (point, distance)
+visited = {start}
+
+result_distance = None
+
+# Perform BFS
+while queue:
+    current_point, dist = queue.popleft()
+    # Check if reached destination
+    if current_point == dest:
+        result_distance = dist
+        break
+    # Traverse neighbors
+    for neighbor in adjacency.get(current_point, []):
+        if neighbor not in visited:
+            visited.add(neighbor)
+            queue.append((neighbor, dist + 1))
+
+# Output result
+if result_distance is not None:
+    print(result_distance)
+else:
+    print("Impossible.")
+
+
+
+
