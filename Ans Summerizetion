@@ -1,3 +1,5 @@
+1. new code
+
 import sys
 import collections
 
@@ -225,3 +227,283 @@ def solve():
         print(0)
     else:
         print(best_distance)
+
+
+
+2. code
+
+
+def solve():
+    import sys
+    input_data = sys.stdin.read().strip().split()
+    idx = 0
+    
+    # Read number of buses
+    N = int(input_data[idx]); idx += 1
+    
+    # Data structures to store bus info
+    bus_start_coords = []
+    bus_route_strings = []
+    
+    # Read bus starts and route-strings
+    for _ in range(N):
+        x = int(input_data[idx]); y = int(input_data[idx+1])
+        idx += 2
+        bus_start_coords.append((x, y))
+        route_str = input_data[idx]
+        idx += 1
+        bus_route_strings.append(route_str)
+    
+    # Read cost array and waiting-time array
+    cost_array = list(map(int, input_data[idx:idx+N]))
+    idx += N
+    wait_array = list(map(int, input_data[idx:idx+N]))
+    idx += N
+    
+    # Read K, the number of bus stops given
+    K = int(input_data[idx]); idx += 1
+    
+    # Read the K bus stops
+    city_stops = []
+    for _ in range(K):
+        x = int(input_data[idx]); y = int(input_data[idx+1])
+        idx += 2
+        city_stops.append((x, y))
+    
+    # Read source and destination
+    source = (int(input_data[idx]), int(input_data[idx+1]))
+    idx += 2
+    destination = (int(input_data[idx]), int(input_data[idx+1]))
+    idx += 2
+    
+    # We should treat source/destination also as bus stops (if not already present)
+    stops_set = set(city_stops)
+    if source not in stops_set:
+        stops_set.add(source)
+        city_stops.append(source)
+    if destination not in stops_set:
+        stops_set.add(destination)
+        city_stops.append(destination)
+    
+    # Directions map: how to move by 1 unit in each direction
+    dir_map = {
+        'E':  (1, 0),
+        'W':  (-1,0),
+        'N':  (0, 1),
+        'S':  (0, -1),
+        'NE': (1, 1),
+        'NW': (-1,1),
+        'SE': (1, -1),
+        'SW': (-1,-1),
+    }
+    
+    def parse_route(route_str):
+        """
+        Given a route string like 'NE4E3S1', break into [("NE",4), ("E",3), ("S",1)].
+        """
+        chunks = []
+        i = 0
+        while i < len(route_str):
+            # Direction can be 1 or 2 chars (N,E,S,W or NE,NW,SE,SW)
+            if i+1 < len(route_str) and route_str[i:i+2] in dir_map:
+                # 2-char direction
+                d = route_str[i:i+2]
+                i += 2
+            else:
+                # 1-char direction
+                d = route_str[i]
+                i += 1
+            # Next characters up to next letter are distance
+            dist_str = []
+            while i < len(route_str) and route_str[i].isdigit():
+                dist_str.append(route_str[i])
+                i += 1
+            dist_val = int("".join(dist_str))
+            chunks.append((d, dist_val))
+        return chunks
+    
+    # Precompute all bus schedules
+    # bus_schedules[i] = list of (stopCoord, arrivalTime, departureTime, cumulativeDistance)
+    bus_schedules = []
+    
+    for i in range(N):
+        startX, startY = bus_start_coords[i]
+        route_parsed = parse_route(bus_route_strings[i])
+        wait_i = wait_array[i]
+        
+        # We'll simulate step by step
+        # Keep track of (x, y, arrivalTime, departureTime, cumulDist)
+        # We only record an entry if (x,y) is a bus stop or it's the very start.
+        
+        # Start
+        currX, currY = startX, startY
+        currTime = 0
+        cumulDist = 0
+        
+        # We'll keep a list of "key frames" for the bus
+        schedule = []
+        
+        # The bus is at its start coordinate at time=0
+        # So arrivalTime=0, departureTime=0 + wait_i if start is a bus stop
+        # The problem states "Every bus's starting and ending stops are bus stops by default."
+        # So definitely record the start as a bus stop.
+        arrivalT = 0
+        departureT = arrivalT + wait_i
+        schedule.append((currX, currY, arrivalT, departureT, cumulDist))
+        
+        # Now expand according to each direction-chunk
+        for (direction, dist) in route_parsed:
+            dx, dy = dir_map[direction]
+            for _step in range(dist):
+                # The bus departs from (currX,currY) at departureT
+                # Move 1 unit in (dx, dy)
+                currX += dx
+                currY += dy
+                # Takes 1 minute of travel from departureT
+                currTime = departureT + 1
+                cumulDist += 1
+                
+                # If (currX, currY) is a bus stop (or this is the final coordinate
+                # in the entire route), the bus arrives here at currTime and must wait wait_i
+                # But we only know it's the final coordinate after we parse the entire route.
+                # So do a step-by-step approach: if it is in stops_set, we wait.
+                if (currX, currY) in stops_set:
+                    arrivalT = currTime
+                    departureT = arrivalT + wait_i
+                    schedule.append((currX, currY, arrivalT, departureT, cumulDist))
+                else:
+                    # If not a known bus stop, the bus has no wait here.
+                    # But we need departureT to reflect "continuous travel."
+                    departureT = currTime
+        
+        # We must ensure the final coordinate is definitely included.
+        # The final coordinate of the bus is also "a bus stop by default."
+        # The final coordinate from the route should be (currX, currY) after all chunks.
+        # If it's not already in stops_set, we treat it as a bus stop anyway.
+        final_coord = (currX, currY)
+        if schedule and schedule[-1][0:2] != final_coord:
+            # The bus presumably "arrives" here at "departureT + 1" if the last segment ended short
+            # But typically the final step above will have ended on this final_coord.
+            pass  # Usually we’ll have ended exactly here, so it’s already appended.
+        
+        # Make sure we "label" the final entry in the schedule as a bus stop with waiting time.
+        # If the schedule does not end with the route’s final coordinate, fix that now:
+        lastX, lastY, arrT, depT, cd = schedule[-1]
+        if (lastX, lastY) != final_coord:
+            # The route ended in final_coord but we never appended it
+            # This can happen if the final segment wasn't in stops_set.
+            # We need to add the final coordinate forcibly.
+            # The bus arrives at final_coord 1 minute after the last departureT.
+            arrT = depT + 1
+            depT = arrT + wait_i
+            cd += 1
+            schedule.append((final_coord[0], final_coord[1], arrT, depT, cd))
+        else:
+            # If it is the same coordinate but no explicit wait, we must ensure final wait is present
+            # because "All buses will be halted on the final bus stops" (but that waiting doesn’t
+            # matter for catching it after the end. Typically no new passengers will board anyway).
+            # For consistency, we can just update the last tuple so it ends with final wait.
+            schedule[-1] = (
+                lastX,
+                lastY,
+                arrT,
+                arrT + wait_i,  # final wait
+                cd
+            )
+        
+        bus_schedules.append(schedule)
+    
+    # For quick lookup, we want to know for each (stop) which bus indices and which schedule indices correspond:
+    # bus_presence[(stopX,stopY)] = list of (iBus, idxInSchedule)
+    from collections import defaultdict
+    bus_presence = defaultdict(list)
+    for i in range(N):
+        for idxStop, (sx, sy, arrT, depT, cdist) in enumerate(bus_schedules[i]):
+            bus_presence[(sx, sy)].append((i, idxStop))
+    
+    import heapq
+    
+    # Priority queue items are: (costSoFar, currentStop, arrivalTime)
+    # We'll keep a dictionary best[(stop, arrivalTime)] = minCost
+    # but we must allow times to differ. We'll do a small "no dominance" approach:
+    # We store, for each stop, a list of (time, cost) states that are not dominated.
+    
+    # For convenience, define a structure to store non-dominated states:
+    best_states = defaultdict(lambda: [])  # stop -> list of (time, cost)
+    
+    def is_dominated(stop, new_time, new_cost):
+        # If we ever find an existing (t, c) such that t <= new_time and c <= new_cost, new is dominated.
+        # Also, if new_time <= t and new_cost <= c, we dominate that old one -> remove it.
+        to_remove = []
+        for (t, c) in best_states[stop]:
+            if t <= new_time and c <= new_cost:
+                # existing is strictly better or equal => new is dominated
+                return True
+        return False
+    
+    def add_state(stop, new_time, new_cost):
+        # Insert (new_time, new_cost) after removing states we dominate
+        # For small K, we can do it straightforwardly
+        remove_list = []
+        for (t, c) in best_states[stop]:
+            if new_time <= t and new_cost <= c:
+                # we dominate that
+                remove_list.append((t,c))
+        for rc in remove_list:
+            best_states[stop].remove(rc)
+        best_states[stop].append((new_time,new_cost))
+    
+    pq = []
+    # Start from (source, cost=0, time=0)
+    heapq.heappush(pq, (0, source, 0))  # (costSoFar=0, currentStop=source, arrivalTime=0)
+    best_states[source].append((0, 0))  # (time=0, cost=0)
+    
+    # D' approach until we reach destination
+    INF = 10**15
+    answer = None
+    
+    while pq:
+        costSoFar, stopCur, timeCur = heapq.heappop(pq)
+        # If we've reached destination, we're done
+        if stopCur == destination:
+            answer = costSoFar
+            break
+        
+        # If this state is already dominated by a better or equal state, skip
+        # (A quick check: if we are not exactly matching a stored cost, it may be stale)
+        if is_dominated(stopCur, timeCur, costSoFar):
+            continue
+        
+        # Let’s see which buses are present at stopCur
+        if stopCur not in bus_presence:
+            # no bus from here
+            continue
+        
+        for (bus_i, idxInBusSch) in bus_presence[stopCur]:
+            # This bus visits stopCur at schedule index idxInBusSch
+            (sx, sy, arrT, depT, cdist) = bus_schedules[bus_i][idxInBusSch]
+            # We can only board if timeCur <= depT
+            if timeCur <= depT:
+                # We can board the bus at index idxInBusSch
+                # Then we can ride it to subsequent stops idx>idxInBusSch
+                baseDist = cdist
+                for idxNext in range(idxInBusSch+1, len(bus_schedules[bus_i])):
+                    (nx, ny, narrT, ndepT, ncdist) = bus_schedules[bus_i][idxNext]
+                    # We would arrive at (nx,ny) at narrT
+                    # The cost to ride from schedule[idxInBusSch] to schedule[idxNext]:
+                    rideDist = (ncdist - baseDist)
+                    rideCost = rideDist * cost_array[bus_i]
+                    newCost = costSoFar + rideCost
+                    newTime = narrT  # we arrive at this stop at narrT
+                    # Check dominance
+                    if not is_dominated((nx, ny), newTime, newCost):
+                        add_state((nx, ny), newTime, newCost)
+                        heapq.heappush(pq, (newCost, (nx, ny), newTime))
+                # Once we finish riding the bus, we do not consider partial alighting in between
+                # because that’s effectively included by the iteration from idxInBusSch+1 onward.
+    
+    if answer is None:
+        print("Impossible")
+    else:
+        print(answer)
+
