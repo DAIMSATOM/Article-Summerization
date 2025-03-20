@@ -284,3 +284,128 @@ def solve_mapmarks():
 Optimize Cost--------------------------------------------------------------------------------
 
 
+
+
+string Ladder--------------------------------------------------------------------------------
+from functools import lru_cache
+
+def solve_string_laddermarks(main_string, substrings):
+    """
+    Solve the String LadderMarks problem.
+    :param main_string: The target string to form.
+    :param substrings: List of tuples (sub_str, cost, weight, ability) for each available substring.
+    :return: (min_cost, chosen_substrings, max_height) where:
+             min_cost is the minimum total cost to form main_string,
+             chosen_substrings is the list of substrings (with their attributes) used in the solution,
+             max_height is the maximum stack height from the chosen substrings.
+    """
+    n = len(substrings)
+    m = len(main_string)
+    # Precompute next index in main_string after using each substring starting at position i
+    next_index = [[0] * (m + 1) for _ in range(n)]
+    for p_idx, (p_str, cost, weight, ability) in enumerate(substrings):
+        for i in range(m + 1):
+            if i == m:
+                next_index[p_idx][i] = m  # already at end
+            else:
+                # simulate matching substring p_str starting from main_string index i
+                t = i
+                for ch in p_str:
+                    if t < m and ch == main_string[t]:
+                        t += 1
+                    if t == m:  # matched entire remainder of target
+                        break
+                next_index[p_idx][i] = t
+    
+    # DP memoization for minimum cost subsequence cover
+    @lru_cache(maxsize=None)
+    def dp(position, used_mask):
+        if position == m:  # reached end of main_string
+            return 0
+        best = float('inf')
+        # Try each unused substring as the next component
+        for p_idx, (p_str, cost, weight, ability) in enumerate(substrings):
+            if used_mask & (1 << p_idx):
+                continue  # skip already used substring
+            j = next_index[p_idx][position]
+            if j == position:  # this substring doesn't match the next needed char
+                continue
+            # Cost if we use this substring and then cover the rest
+            remaining_cost = dp(j, used_mask | (1 << p_idx))
+            if remaining_cost != float('inf'):
+                total_cost = cost + remaining_cost
+                if total_cost < best:
+                    best = total_cost
+        return best
+    
+    min_cost = dp(0, 0)
+    
+    # Reconstruct chosen substrings sequence for the minimum cost
+    chosen_indices = []
+    position = 0
+    used_mask = 0
+    if min_cost == float('inf'):
+        # No solution (not expected in valid inputs, but handle gracefully)
+        chosen_substrings = []
+    else:
+        while position < m:
+            # Find which substring led to the optimal solution at this state
+            for p_idx, (p_str, cost, weight, ability) in enumerate(substrings):
+                if used_mask & (1 << p_idx):
+                    continue
+                j = next_index[p_idx][position]
+                if j == position:
+                    continue
+                # Check if this choice matches the DP optimal cost
+                remaining_cost = dp(j, used_mask | (1 << p_idx))
+                if remaining_cost != float('inf') and cost + remaining_cost == dp(position, used_mask):
+                    chosen_indices.append(p_idx)
+                    used_mask |= (1 << p_idx)
+                    position = j
+                    break
+        # Gather the chosen substrings (with their attributes) in the used order
+        chosen_substrings = [substrings[idx] for idx in chosen_indices]
+    
+    # Phase 2: Determine maximum ladder (stack) height from chosen_substrings
+    if not chosen_substrings:
+        max_height = 0
+    else:
+        # Sort by ability (asc), then weight (asc)
+        chosen_substrings.sort(key=lambda x: (x[3], x[2]))  # (sub_str, cost, weight, ability) -> sort by ability,weight
+        k = len(chosen_substrings)
+        # dp_height[h] = minimum total weight of a stack of height h
+        dp_height = [float('inf')] * (k + 1)
+        dp_height[0] = 0  # zero height, zero weight
+        max_height = 0
+        for (p_str, cost, weight, ability) in chosen_substrings:
+            # Try to put this piece at the bottom of a stack of height h (iterate heights high to low)
+            for h in range(max_height, -1, -1):
+                if dp_height[h] <= ability:
+                    # If current piece can support stack of height h (weight dp_height[h]), extend to h+1
+                    new_weight = dp_height[h] + weight
+                    if new_weight < dp_height[h+1]:
+                        dp_height[h+1] = new_weight
+                        # Update maximum height seen
+                        if h+1 > max_height:
+                            max_height = h + 1
+        # max_height now holds the tallest possible stack
+    return min_cost, chosen_substrings, max_height
+
+# Example usage (assuming input is provided accordingly):
+if __name__ == "__main__":
+    # Example input (to be replaced with actual input parsing as needed):
+    main_string = "TARGETSTRING"
+    substrings = [
+        # (substring, cost, weight, ability)
+        ("TA", 5, 3, 5),
+        ("RGETS", 8, 4, 6),
+        ("TIN", 6, 2, 0),
+        ("STR", 7, 5, 10),
+        # ... more substrings ...
+    ]
+    result_cost, result_substrings, result_height = solve_string_laddermarks(main_string, substrings)
+    print("Minimum Cost:", result_cost)
+    print("Chosen Substrings (in order):", [s[0] for s in result_substrings])
+    print("Maximum Ladder Height:", result_height)
+
+
