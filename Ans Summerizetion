@@ -283,6 +283,215 @@ def solve_mapmarks():
 
 Optimize Cost--------------------------------------------------------------------------------
 
+def find_min_cost_path():
+    import sys, bisect, heapq
+    
+    lines = sys.stdin.read().splitlines()
+    if not lines:
+        return
+    line_idx = 0
+    # Read number of test cases (if provided)
+    T = 1
+    first_line = lines[line_idx].strip().split()
+    if len(first_line) == 1:
+        try:
+            T = int(first_line[0])
+            line_idx += 1
+        except:
+            T = 1
+
+    output_lines = []
+    for _ in range(T):
+        if line_idx >= len(lines):
+            break
+        # Parse source and destination coordinates
+        coords = []
+        # The coordinates might span one or two lines
+        while len(coords) < 4 and line_idx < len(lines):
+            coords += lines[line_idx].strip().split()
+            line_idx += 1
+        if len(coords) < 4:
+            break
+        sx, sy, dx, dy = map(int, coords[:4])
+        
+        # If source == destination, skip searching (cost 0)
+        if sx == dx and sy == dy:
+            # Read and skip bus data for this test case
+            if line_idx < len(lines):
+                try:
+                    N = int(lines[line_idx].strip().split()[0])
+                except:
+                    N = 0
+            else:
+                N = 0
+            line_idx += 1
+            for _ in range(N):
+                if line_idx < len(lines):
+                    line_idx += 1
+            output_lines.append("0")
+            continue
+        
+        # Parse number of buses
+        if line_idx >= len(lines):
+            break
+        parts = lines[line_idx].strip().split()
+        N = int(parts[0]) if parts else 0
+        line_idx += 1
+
+        # Data structures for routes and events
+        bus_costs = []
+        bus_routes = []   # list of list of coordinates
+        bus_times = []    # list of list of times (parallel to bus_routes)
+        coord_events = {}  # map: coordinate -> list of (bus_id, index_in_route, time)
+        
+        # Parse each bus route
+        for b in range(N):
+            if line_idx >= len(lines):
+                break
+            tokens = lines[line_idx].strip().split()
+            line_idx += 1
+            # If a bus description spans multiple lines, gather them
+            while len(tokens) < 4 or (len(tokens) >= 4 and len(tokens) < 4 + 2*int(tokens[3])):
+                if line_idx >= len(lines):
+                    break
+                tokens += lines[line_idx].strip().split()
+                line_idx += 1
+            if len(tokens) < 4:
+                continue
+            # Extract bus fare and starting position
+            fare = int(tokens[0])
+            start_x = int(tokens[1]); start_y = int(tokens[2])
+            m = int(tokens[3])
+            # Build the route coordinates and times
+            x, y = start_x, start_y
+            route_coords = [(x, y)]
+            route_times = [0]
+            idx = 4
+            for j in range(m):
+                if idx + 1 >= len(tokens):
+                    break
+                direction = tokens[idx]; length = int(tokens[idx+1])
+                idx += 2
+                # Determine direction vector
+                dx_dir = dy_dir = 0
+                if direction == 'N':
+                    dy_dir = 1
+                elif direction == 'S':
+                    dy_dir = -1
+                elif direction == 'E':
+                    dx_dir = 1
+                elif direction == 'W':
+                    dx_dir = -1
+                # Add each step in the direction
+                for step in range(length):
+                    x += dx_dir
+                    y += dy_dir
+                    route_coords.append((x, y))
+                    # Each step takes 1 time unit, so increment time
+                    route_times.append(route_times[-1] + 1)
+            bus_costs.append(fare)
+            bus_routes.append(route_coords)
+            bus_times.append(route_times)
+            # Record the time each bus arrives at each coordinate
+            for idx_rt, coord in enumerate(route_coords):
+                t = route_times[idx_rt]
+                coord_events.setdefault(coord, []).append((b, idx_rt, t))
+        
+        # Sort arrival times for each coordinate for efficient lookup
+        coord_times = {coord: sorted(ev[2] for ev in events) 
+                       for coord, events in coord_events.items()}
+        
+        # Dijkstra-like search: state is (cost, time, type, *location_info)
+        # type = 0 for "off-bus" (at a coordinate), 1 for "on-bus"
+        # location_info = (x, y) if off-bus, or (bus_id, index) if on-bus
+        pq = []
+        # Best known states to avoid re-processing worse ones
+        best_off = {}  # best_off[coord] = list of (cost, time) non-dominated states
+        best_on = {}   # best_on[(bus_id, index)] = minimum cost to be on that bus at that index
+
+        # Start at source coordinate at time 0 with cost 0
+        start_coord = (sx, sy)
+        best_off[start_coord] = [(0, 0)]
+        heapq.heappush(pq, (0, 0, 0, sx, sy))
+        
+        found_cost = None  # will store the minimum cost to reach destination if found
+
+        while pq:
+            cost, time, state_type, a, b = heapq.heappop(pq)
+            if state_type == 0:
+                # Off-bus state at coordinate (a, b)
+                coord = (a, b)
+                # If this state is dominated by a better state at this coord, skip it
+                if coord not in best_off or all(not (c == cost and t == time) for c, t in best_off[coord]):
+                    continue
+                # If this coordinate is the destination, we found the answer
+                if coord == (dx, dy):
+                    found_cost = cost
+                    break
+                # Explore boarding any bus from this coordinate
+                if coord in coord_events:
+                    # Find the first bus arrival time >= current time
+                    times_list = coord_times[coord]
+                    i = bisect.bisect_left(times_list, time)
+                    for j in range(i, len(times_list)):
+                        t_bus = times_list[j]
+                        # For each bus that arrives at this time
+                        for bus, idx_rt, arr_time in coord_events[coord]:
+                            if arr_time != t_bus:
+                                continue
+                            if arr_time < time: 
+                                continue  # (should not happen due to bisect)
+                            new_cost = cost + bus_costs[bus]
+                            # If we already can be on this bus at this index cheaper, skip
+                            if best_on.get((bus, idx_rt), float('inf')) <= new_cost:
+                                continue
+                            # Board this bus at idx_rt
+                            best_on[(bus, idx_rt)] = new_cost
+                            heapq.heappush(pq, (new_cost, arr_time, 1, bus, idx_rt))
+            else:
+                # On-bus state: currently on 'bus' at route index 'b'
+                bus_id = a; idx_rt = b
+                # If a cheaper cost to be at this bus/index exists, skip this state
+                if best_on.get((bus_id, idx_rt), float('inf')) < cost:
+                    continue
+                # Option 1: stay on the bus to go to the next stop (if any)
+                if idx_rt < len(bus_routes[bus_id]) - 1:
+                    next_idx = idx_rt + 1
+                    depart_time = bus_times[bus_id][next_idx]  # time bus arrives at next stop
+                    if best_on.get((bus_id, next_idx), float('inf')) > cost:
+                        best_on[(bus_id, next_idx)] = cost
+                        heapq.heappush(pq, (cost, depart_time, 1, bus_id, next_idx))
+                # Option 2: get off the bus at the current stop
+                coord = bus_routes[bus_id][idx_rt]
+                disembark_time = bus_times[bus_id][idx_rt]  # current time
+                disembark_cost = cost
+                # Check if this off-bus state is dominated by an existing one
+                current_states = best_off.get(coord, [])
+                dominated = False
+                for c_old, t_old in current_states:
+                    if c_old <= disembark_cost and t_old <= disembark_time:
+                        dominated = True
+                        break
+                if dominated:
+                    continue
+                # Remove states that are worse than the new state
+                new_states = [(c_old, t_old) for (c_old, t_old) in current_states 
+                              if not (disembark_cost <= c_old and disembark_time <= t_old)]
+                new_states.append((disembark_cost, disembark_time))
+                best_off[coord] = new_states
+                heapq.heappush(pq, (disembark_cost, disembark_time, 0, coord[0], coord[1]))
+        
+        # Output the result for this test case
+        if found_cost is None:
+            output_lines.append("Impossible")
+        else:
+            output_lines.append(str(found_cost))
+    
+    print("\n".join(output_lines))
+
+# If running as a script, call the function
+if __name__ == "__main__":
+    find_min_cost_path()
 
 
 
