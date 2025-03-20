@@ -1,290 +1,125 @@
-Runtime error
+both run time error
 
 
 
 
-
-
-
-
-Q2
-
-
-
-
-Optimize CostMarks: 100
+Q3
+String LadderMarks: 100
 Problem Description
-Liz needs to travel from one location in a city to another using buses. Due to limited nighttime service, she has to carefully plan her route to minimize costs. She can access real-time information about available buses, their departure times, routes, and costs per unit distance travelled.
+Medha, a skilled problem solver with a passion for strings, sets herself a new challenge on this relaxing Sunday. Her challenge has two parts:
 
-Your Task:
+Part 1: String Selection (Minimum Cost)
 
-Help Liz find the most cost-effective bus itinerary from her starting location (Source) to her destination (Destination).
+Given N substrings, each with a unique cost and weight, Medha needs to select and concatenate some(or all) of these substrings to create a new string containing the main string as a subsequence. The goal is to achieve this concatenation at the minimum possible total cost.
 
-Information Given:
+Part 2: Ladder Construction (Maximum Height)
 
-N: The number of available buses.
-Bus Routes (N lines): Each line represents a bus route, described as a string of directions:
-Each direction will be one of the characters: 'E', 'W', 'S', 'N', 'NE', 'NW', 'SE', 'SW' representing East, West, South, North, Northeast, Northwest, Southeast, Southwest.
-Bus Route Map
+Using the selected substrings from Part 1, Medha constructs a ladder with the following rules:
 
-Numbers following the directions indicate the distance travelled in that direction (e.g., "NE4E3S1" means 4 units NE, 3 units E, and 1 unit S).
-Cost Array (N elements): The cost of traveling one unit distance on each bus.
-Waiting Time Array (N elements): Each line contains the waiting time at each stop along the route for a specific bus. Waiting times are given in minutes and include the starting bus stop.
-K: The number of bus stops in the city.
-Bus Stop Coordinates (K lines): Each line provides the coordinates of a bus stop.
-Source Coordinates: Liz's starting location.
-Destination Coordinates: Liz's desired endpoint.
-Note that Liz can wait for a bus that is yet to arrive at her waiting bus stop, but she cannot board a bus that has already departed from the bus stop. Each bus will take one unit of time for travelling one unit of distance. Here one unit of distance means travelling from one corner to any another corner of the cell. All the buses start from their respective source at the same time (0th minute). Every bus's starting and ending stops are bus stops by default. The bus will stop at intermediate bus stops also if the bus stop falls in the route of the bus. The whole journey is within the same day.
+Height: Each string added to the ladder increases its height by one unit.
+Carrying Ability: Each string has an ability value calculated as the sum of the place values of its characters (e.g., 'a' = 1, 'b' = 2, ..., 'z' = 26). This ability represents its capacity to support strings above it in the ladder.
+Weight: The weights of each string is provided as input.
+The challenge is to determine the maximum possible height of the ladder that can be built while adhering to these rules: a string's carrying ability must be greater than or equal to the total weight of all strings stacked above it.
+
+Can you help Medha find the optimal solutions for both parts of her challenge?
 
 Constraints
-1 <= N, K <= 20
+1 <= N <= 25
 
-1 <= x, y co-ordinates <= 100
+1 <= length of each substring <= 20
 
-Buses are uni-directional.
+1 <= length of main string <= 100
 
-All the buses will be halted on the final bus stops.
+All the costs will be unique
 
-All buses will wait for a specified duration at each bus stop, including the starting stop.
-
-Unit of time is minutes.
+All the substrings and main string consists of lowercase alphabets only.
 
 Input
-First line consists of a single integer N, denoting the number of buses.
+First line consists of an integer N denoting the number of substrings.
 
-The next N×2 lines contain two space-separated integers representing the x, y coordinates of the buses starting points, followed by their respective directions on separate lines.
+Next N lines each consists of three space separated values in the format - substring cost weight.
 
-Next line consists of N space separated integers denoting the Cost array.
-
-Next line consists of N space separated integers denoting the Waiting Time array.
-
-Next line consists of an integer K denoting the number of bus stops (only limited to how many given in the input, this may or may not include the default bus stops)
-
-Next K lines consist of two space separated integers denoting the x, y coordinates of the bus stops
-
-Second line from the last consists of the x, y coordinates of Liz's current position.
-
-Last line consists of the x, y coordinates of destination.
+Last line consists of the main string.
 
 Output
-Print a single integer denoting the minimum cost Liz must spend to reach the destination. If it is impossible to reach, print "Impossible".
+Print a single integer denoting the maximum height of the ladder that can be formed.
 
 Time Limit (secs)
 1
 
 Examples
-Example1
+Example 1
 
 Input
 
-6
+7
 
-2 0
+flow 40 30
 
-E4N2
+glow 45 22
 
-0 0
+show 55 18
 
-E2E2
+throw 60 42
 
-2 0
+know 50 33
 
-N2N2
+blow 35 12
 
-4 0
+flat 30 80
 
-E2N2
-
-6 2
-
-N2W4
-
-4 4
-
-W2
-
-1 2 20 0 2 1
-
-2 1 30 80 10 100
-
-4
-
-2 4
-
-4 4
-
-6 2
-
-4 0
-
-2 0
-
-2 4
+wowwhatashow
 
 Output
 
-16
+5
 
 Explanation
 
-From the given input, it is understandable that -
+For minimising the cost, Medha can select the substrings {blow, blow, blow, show, flat, flat, show} which on concatenating results blowblowblowshowflatflatshow
 
-Considering the bus stops, the paths each bus follows is given below.
+We can see that the given main string is a subsequence of the concatenated string.
 
-Bus0 - (2, 0) -> (4, 0) -> (6, 2)
+The cost of the above selection is - 3 * 35 (cost of blow) + 2 * 55 (cost of show) + 2 * 30 (cost of flat) = 275 which is the minimum possible cost.
 
-Bus1 - (0, 0) -> (2,0) -> (4, 0)
+Hence, the selected substrings for the ladder construction are - {blow, blow, blow, show, flat, flat, show}
 
-Bus2 - (2, 0) -> (2, 4)
+Construct the ladder in the order - {show, show, blow, blow, blow} from bottom to top, tower goes a height of 5 which is the maximum possible. Hence, print 5.
 
-Bus3 - (4, 0) -> (6, 2)
-
-Bus4 - (6, 2) -> (4, 4) -> (2, 4)
-
-Bus5 - (4, 4) -> (2, 4)
-
-The table below displays the departure times of each bus from the respective bus stops.
-
-com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@5bf61e67:image2.png
-
-*NA indicates that the bus is not going to that specific bus stop in its entire journey.
-
-From the above table, we can know until what time we can wait for each bus in the respective stations. To optimize the cost, Liz can take the bus0 from (2, 0) until (6, 2) and then change to bus4 and travel until (4, 4) then change to bus5 and travel until (2, 4) which will incur a cost of 1 * 6 + 2 * 4 + 1 * 2 = 16
-
-There is a direct bus from (2, 0) to (2, 4) but she cannot take it because it will not result in minimum cost. Hence print 16.
+Note that the solutions given above is one of the possibilities.
 
 Example 2
 
 Input
 
-6
-
-1 1
-
-N3
-
-1 1
-
-NE3
-
-1 1
-
-NE3N3
-
-1 1
-
-N3NE3
-
-4 7
-
-E2NW2
-
-4 7
-
-W2NE2
-
-1 2 3 4 5 6
-
-1 2 3 4 5 60
-
 5
 
-1 1
+cat 21 15
 
-1 4
+rat 17 2
 
-4 4
+dog 4 7
 
-4 7
+fox 9 9
 
-4 9
+box 11 12
 
-1 1
-
-4 9
+gotcaroxfaxtax
 
 Output
 
-39
+10
 
 Explanation
 
-From the given input, it is understandable that -
+For minimising the cost, Medha can select the substrings {dog, dog, rat, cat, rat, fox, fox, rat, fox, rat, rat, fox} which on concatenating results dogdogratcatratfoxfoxratfoxratratfox
 
-Considering the bus stops, the paths each bus follows is given below.
+We can see that the given main string is a subsequence of the concatenated string.
 
-Bus0 - (1, 1) -> (1, 4)
+The cost of the above selection is - 1 * 21 (cost of cat) + 2 * 4 (cost of dog) + 4 * 9 (cost of fox) + 5 * 17 (cost of rat) = 150 which is the minimum possible cost.
 
-Bus1 - (1, 1) -> (4, 4)
+Hence, the selected substrings for the ladder construction are - {dog, dog, rat, cat, rat, fox, fox, rat, fox, rat, rat, fox}
 
-Bus2 - (1, 1) -> (4, 4) -> (4, 7)
+Construct the ladder in the order - {fox, fox, fox, rat, rat, rat, rat, rat, dog, dog} from bottom to top, tower gives a height of 10 which is the maximum possible. Hence, print 10.
 
-Bus3 - (1, 1) -> (1, 4) -> (4, 7)
-
-Bus4 - (4, 7) -> (4, 9) via the point (6, 7)
-
-Bus5 - (4, 7) -> (4, 9) via the point (2, 7)
-
-The table below displays the departure times of each bus from the respective bus stops.
-
-com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@5bf61e67:image3.png
-
-From the above table, we can know until what time we can wait for each bus in the respective stations. To optimize the cost, Liz can take the bus1 from (1, 1) until (4, 4) and then change to bus2 and travel until (4, 7) then change to bus5 and travel until (4, 9) which will incur a cost of 2 * 3 + 3 * 3 + 6 * 4 = 39
-
-No other selections will give less than 39, hence print the same.
-
-Example 3
-
-Input
-
-3
-
-2 2
-
-NE3SE3
-
-1 5
-
-E2E2
-
-2 8
-
-SE3NE3
-
-10 20 30
-
-10 50 20
-
-3
-
-5 5
-
-8 2
-
-1 5
-
-1 5
-
-8 2
-
-Output
-
-Impossible
-
-Explanation
-
-From the given input, it is understandable that -
-
-Considering the bus stops, the paths each bus follows is given below.
-
-Bus0 - (2, 2) -> (5, 5) -> (8, 2)
-
-Bus1 - (1, 5) -> (5, 5)
-
-Bus2 - (2, 8) -> (5, 5) -> (8, 8)
-
-The table below displays the departure times of each bus from the respective bus stops.
-
-com.tcs.cv.automata.ei.middleware.DocxToHtmlConverter@5bf61e67:image4.png
-
-From the above table, we can know until what time we can wait for each bus in the respective stations. After reaching (5, 5) from (1, 1) in bus1, Liz cannot get into a bus to reach (8, 2), hence print the impossible.
+Note that the solutions given above is one of the possibilities.
