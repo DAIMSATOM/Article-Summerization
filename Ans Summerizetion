@@ -82,3 +82,98 @@ def solve():
                 dp_height[w + weight] = max(dp_height[w + weight], dp_height[w] + 1)
 
     print(max(dp_height))
+
+
+
+
+4.
+def solve():
+    import sys
+    from collections import deque
+    input_data = sys.stdin.read().strip().split()
+    
+    # Read number of roads
+    N = int(input_data[0])
+    idx = 1
+    
+    # Helper: gcd
+    from math import gcd
+    
+    # We'll gather all roads in a list: [(x1,y1,x2,y2), ...]
+    roads = []
+    for _ in range(N):
+        x1 = int(input_data[idx]);   y1 = int(input_data[idx+1])
+        x2 = int(input_data[idx+2]); y2 = int(input_data[idx+3])
+        idx += 4
+        roads.append( (x1,y1,x2,y2) )
+    
+    # Read start (x_s, y_s) and end (x_g, y_g)
+    x_s = int(input_data[idx]); y_s = int(input_data[idx+1])
+    x_g = int(input_data[idx+2]); y_g = int(input_data[idx+3])
+    
+    # Dictionary mapping (x,y) -> vertex_id
+    vertex_id = {}
+    # Adjacency list for the graph (we'll build it incrementally)
+    edges = []
+    
+    def add_vertex(p):
+        """Add point p=(x,y) if not present; return its index."""
+        if p not in vertex_id:
+            vertex_id[p] = len(edges)
+            edges.append([])  # adjacency list for the new vertex
+        return vertex_id[p]
+    
+    def add_edge(p1, p2):
+        """Add bidirectional edge between p1 and p2 with cost=1."""
+        v1 = add_vertex(p1)
+        v2 = add_vertex(p2)
+        edges[v1].append(v2)
+        edges[v2].append(v1)
+    
+    # Build the graph: break each road into lattice points
+    for (x1,y1,x2,y2) in roads:
+        dx = x2 - x1
+        dy = y2 - y1
+        g = gcd(abs(dx), abs(dy))
+        
+        step_x = dx // g
+        step_y = dy // g
+        
+        # Generate all points on this road
+        px, py = x1, y1
+        points_on_road = []
+        for _ in range(g+1):
+            points_on_road.append((px, py))
+            px += step_x
+            py += step_y
+        
+        # Link consecutive points in the graph
+        for i in range(len(points_on_road) - 1):
+            add_edge(points_on_road[i], points_on_road[i+1])
+    
+    # Check if start and goal are in the graph
+    if (x_s, y_s) not in vertex_id or (x_g, y_g) not in vertex_id:
+        print("Impossible.")
+        return
+    
+    start_v = vertex_id[(x_s, y_s)]
+    goal_v  = vertex_id[(x_g, y_g)]
+    
+    # BFS to find shortest path
+    dist = [-1] * len(edges)
+    dist[start_v] = 0
+    queue = deque([start_v])
+    
+    while queue:
+        u = queue.popleft()
+        if u == goal_v:
+            print(dist[u])
+            return
+        for v in edges[u]:
+            if dist[v] == -1:  # unvisited
+                dist[v] = dist[u] + 1
+                queue.append(v)
+    
+    # If we exit the BFS loop without returning, it's unreachable
+    print("Impossible.")
+
